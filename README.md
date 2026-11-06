@@ -69,3 +69,15 @@ own `DB_*` connection. The reference environment for this project runs the suite
 
 Outside production, Eloquent runs in strict mode: lazy loading (N+1), silently discarded attributes and missing
 attributes throw, so tests fail on an N+1 query.
+
+## Demo data
+
+`php artisan migrate:fresh --seed` creates reference data (categories, SLA policies from `config/support.php`,
+Sunday–Thursday 09:00–18:00 business hours) and, outside production, demo accounts and ~200 tickets in every
+status and SLA state. All demo passwords are `password`.
+
+| Role     | Email                                   |
+|----------|-----------------------------------------|
+| Admin    | admin@example.com                       |
+| Agent    | agent1@example.com … agent3@example.com |
+| Customer | customer1@example.com … customer5@example.com |

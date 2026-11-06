@@ -17,8 +17,16 @@ return new class extends Migration
             $table->string('email')->unique();
             $table->timestamp('email_verified_at')->nullable();
             $table->string('password');
+            $table->string('role', 20)->default('customer');
+            // Agents only: excluded from auto-assignment when false.
+            $table->boolean('is_available')->default(true);
+            $table->timestamp('last_assigned_at')->nullable();
             $table->rememberToken();
             $table->timestamps();
+
+            // Leftmost prefix serves role lookups (WHERE role = ?); the full index serves
+            // auto-assignment: WHERE role = 'agent' AND is_available = 1 ORDER BY last_assigned_at.
+            $table->index(['role', 'is_available', 'last_assigned_at'], 'users_role_available_last_assigned_index');
         });
 
         Schema::create('password_reset_tokens', function (Blueprint $table) {

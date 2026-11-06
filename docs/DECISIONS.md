@@ -95,3 +95,117 @@ Each entry: **Decision / Options considered / Why this one / Trade-off.**
 - **Options considered:** Business timezone as app timezone; UTC via env; UTC in code.
 - **Why this one:** Storing UTC must not depend on an env value someone could change; conversion happens only in the SLA calculator and views.
 - **Trade-off:** Views must convert explicitly (a helper will do this).
+
+---
+
+## Prompt 2 — Database layer
+
+### D-016 Status, priority, role, reply/activity type as strings cast to PHP enums
+- **Decision:** `VARCHAR` columns cast to backed enums (`TicketStatus`, `TicketPriority`, `Role`, `ReplyType`, `ActivityType`, plus `ImportStatus` and `TicketSource`).
+- **Options considered:** MySQL `ENUM`; lookup tables with FKs; strings + PHP enums.
+- **Why this one:** Adding a status is a code change, not a blocking `ALTER TABLE` on a large table; values are readable in raw SQL and logs; PHP gets type safety and behaviour (`isActive()`, `allowedTransitions()`, `sortWeight()`).
+- **Trade-off:** The database itself does not reject an unknown value; integrity relies on validation and the cast (an invalid stored value throws on read).
+
+### D-017 Snapshot `sla_minutes`; store `due_at` and `sla_warning_at` on the ticket
+- **Decision:** At creation (and on re-prioritisation) the ticket stores the policy id, the minutes in force, and the computed `due_at` / `sla_warning_at`.
+- **Options considered:** Compute SLA state in PHP at read time; a separate SLA table; denormalised columns on `tickets`.
+- **Why this one:** Dashboards and the escalation scanner filter with an indexed `WHERE status IN (...) AND due_at < now()` instead of computing row by row; later policy changes do not rewrite history.
+- **Trade-off:** Changing a policy does not move existing deadlines (intended); re-prioritising must recompute both columns in the same transaction.
+
+### D-018 `ticket_sequences` table for numbering
+- **Decision:** One row per year (`year` PK, `last_number`), incremented under `SELECT ... FOR UPDATE` (implemented in Prompt 4). Format `TKT-YYYY-NNNNNN`.
+- **Options considered:** Derive from the auto-increment id; `MAX(number)+1`; UUIDs; a counter table.
+- **Why this one:** Correct per-year reset with no race: concurrent creators serialise on one row lock instead of reading the same `MAX()`. Auto-increment ids have gaps after rollbacks and do not reset yearly.
+- **Trade-off:** One hot row per year under very high write rates (acceptable for a support desk; the lock is held for a single UPDATE).
+
+### D-019 Replies and internal notes in one table with a `type` column
+- **Decision:** `ticket_replies.type` = `public` | `internal_note`.
+- **Options considered:** Two tables; one table with a type column.
+- **Why this one:** One timeline query, one attachment relation, one index set, and visibility enforced in one place.
+- **Trade-off:** Every customer-facing query must filter by type, so the filter is centralised in `Ticket::publicReplies()` (and a policy in a later prompt), backed by `INDEX(ticket_id, type)`.
+
+### D-020 Purpose-built append-only `ticket_activities`
+- **Decision:** Own table with `type`, `description`, JSON `old_values` / `new_values`, `created_at` only; the model throws on update; `actor_id` NULL = system.
+- **Options considered:** `spatie/laravel-activitylog`; observers writing generic diffs; purpose-built table.
+- **Why this one:** Timeline indexed by `(ticket_id, created_at)`, no polymorphic `subject_type/subject_id` joins, and full control over what is stored (no accidental logging of sensitive columns).
+- **Trade-off:** Each Action must record its activity explicitly.
+
+### D-021 `agent_category` pivot for specialisation
+- **Decision:** Many-to-many between agents and categories, composite PK `(user_id, category_id)` plus reverse index `(category_id, user_id)`.
+- **Options considered:** A single `category_id` on users; a pivot.
+- **Why this one:** Agents can cover several categories; auto-assignment looks up "agents for this category" through the reverse index.
+- **Trade-off:** One extra join in the assignment query.
+
+### D-022 No soft deletes on tickets
+- **Decision:** Tickets are closed, never deleted; no `deleted_at`.
+- **Options considered:** SoftDeletes; hard delete; no deletion feature.
+- **Why this one:** Audit-oriented system; deletion is not in the spec; avoids every query and index needing `deleted_at IS NULL`.
+- **Trade-off:** Mistaken tickets must be closed (or removed manually by a DBA).
+
+### D-023 Foreign-key delete rules
+- **Decision:** `restrict` where history must survive (ticket → category, creator; reply → author; attachment → uploader; import → user); `cascade` for owned children (ticket → replies, attachments, activities; import → errors; pivot rows); `set null` where the reference is optional (ticket → assignee, SLA policy; activity → actor).
+- **Options considered:** Cascade everywhere; no FKs; per-relation rules.
+- **Why this one:** The database itself guarantees no orphaned rows and no silently lost history.
+- **Trade-off:** Users with ticket history cannot be deleted. Breeze's "Delete account" now checks `User::hasTicketHistory()` and returns a validation error instead of a 500 from the FK.
+
+### D-024 Ticket indexes and the query each serves
+Verified with `EXPLAIN` on the seeded database: the breach scan uses `tickets_status_due_at_index`, a customer's list uses `tickets_created_by_created_at_index`, the agent workload count uses `tickets_assigned_agent_id_status_index` (all "Using index"), and search uses the FULLTEXT index.
+
+| Index | Query it serves |
+|---|---|
+| `UNIQUE(ticket_number)` | Lookup by number; guarantees no duplicates. |
+| `(status, due_at)` | `slaBreached()`: `status IN (active) AND due_at < now`; active tickets ordered by due date. |
+| `(assigned_agent_id, status)` | `assignedTo()`, "my tickets", agent workload counts for least-workload assignment, dashboard by agent. |
+| `(created_by, created_at)` | `visibleTo(customer)`: a customer's own list, newest first (filter and sort from the index). |
+| `(priority, status)` | Priority filter; dashboard counts by priority and status. |
+| `(category_id, status)` | Category filter; per-category dashboard; also backs the FK. |
+| `(status, sla_warning_at)` | `slaApproaching()` / warning scanner: `status IN (active) AND sla_warning_at <= now`. |
+| `(status, is_escalated, due_at)` | Escalation scanner: active, not yet escalated, overdue. |
+| `(created_at)` | Staff "all tickets" list, newest first, paginated. Added beyond the brief because every sort column gets an index (rule 4). |
+| `UNIQUE(source, external_reference)` | Import de-duplication; NULL references (web tickets) do not collide in MySQL. |
+| `FULLTEXT(subject, description)` | `search()` keyword search (MySQL/MariaDB only). |
+
+- **Options considered:** Single-column indexes per filter; composite indexes shaped per query; FK indexes only.
+- **Why this one:** Composite indexes ordered equality-first then range/sort match the real WHERE/ORDER BY shapes; several are covering for counts.
+- **Trade-off:** 11 secondary indexes slow writes slightly; tickets are read far more often than written.
+
+### D-025 Other indexes
+- **Decision:** `users(role, is_available, last_assigned_at)` instead of a lone `role` index (the leftmost prefix still serves `WHERE role = ?`; the full index serves available-agent selection ordered by last assignment). `categories(is_active, name)` for dropdowns. `ticket_replies(ticket_id, created_at)` and `(ticket_id, type)`. `ticket_activities(ticket_id, created_at)` and `(type, created_at)`. `attachments(ticket_id)` and `(ticket_reply_id)`. `ticket_imports(user_id, created_at)` and `(status, created_at)`. `ticket_import_errors(ticket_import_id, row_number)` instead of a lone `ticket_import_id` index (same prefix, and returns errors in file order). `holidays.date` and `business_hours.weekday` are unique.
+- **Options considered:** Exactly the indexes in the brief; composite supersets.
+- **Why this one:** A composite whose leftmost column is the requested one serves the same lookups plus the sort, with one index instead of two.
+- **Trade-off:** Slightly wider index entries.
+
+### D-026 Mass-assignment policy
+- **Decision:** `User::$fillable` excludes `role`, `is_available`, `last_assigned_at` (changed only through Actions via `forceFill`). Ticket `$fillable` lists the columns Actions write; FormRequests whitelist user input and Actions map validated fields explicitly. Strict mode makes any non-fillable key throw instead of being dropped.
+- **Options considered:** `$guarded = []`; minimal fillable everywhere; explicit fillable plus explicit mapping.
+- **Why this one:** Role escalation through an extra form field is impossible even if a controller passes too much.
+- **Trade-off:** Seeders and role-changing Actions must use `forceFill`.
+
+### D-027 FULLTEXT only on MySQL; LIKE fallback elsewhere
+- **Decision:** The migration adds `FULLTEXT(subject, description)` only for `mysql`/`mariadb`; `Ticket::search()` uses `whereFullText` there and an escaped `LIKE` otherwise.
+- **Options considered:** FULLTEXT only (breaks SQLite tests); LIKE only (no index); Scout/Meilisearch.
+- **Why this one:** SQLite keeps migrating and searching; MySQL gets an indexed search with no extra service.
+- **Trade-off:** InnoDB FULLTEXT does not see uncommitted rows, so with `RefreshDatabase` (one transaction per test) the MySQL test asserts the generated `MATCH ... AGAINST` SQL rather than results. Natural-language mode ignores words shorter than `innodb_ft_min_token_size` (3).
+
+### D-028 Factories and demo seed
+- **Decision:** Factories produce internally consistent timelines (assigned → first response → resolved → closed) through closures evaluated after states merge; `updated_at` is defined last so it can read the workflow columns. Factory SLA dates are a wall-clock approximation (`created_at + sla_minutes`); real tickets use the business-hours calculator. The demo seeder creates 200 tickets in fixed proportions (on-track, approaching, breached, escalated, unassigned, every status), bulk-inserts replies and activities in chunks of 500, syncs `ticket_sequences` to the highest seeded number, and runs in one transaction. Demo users/tickets are never seeded in production; reference seeders are idempotent (`updateOrCreate`).
+- **Options considered:** Purely random data; fixed fixtures; proportioned factory states.
+- **Why this one:** The dashboard demo always shows every state, and tests can request any state by name.
+- **Trade-off:** Factory ticket numbers come from an in-process counter, not `ticket_sequences`; tests of the real generator must not rely on factory-created numbers.
+
+### D-029 Status transitions allow reopening
+- **Decision:** `Open → InProgress | WaitingForCustomer | Resolved | Closed`; `InProgress → WaitingForCustomer | Resolved | Closed`; `WaitingForCustomer → InProgress | Resolved | Closed`; `Resolved → Closed | Open`; `Closed → Open`.
+- **Options considered:** Closed as terminal; reopening allowed.
+- **Why this one:** Customers often reply to a resolved or closed ticket; reopening keeps one thread. The simplest reasonable reading of the brief.
+- **Trade-off:** A reopened ticket needs a fresh SLA decision (handled by the transition Action).
+
+### D-030 Small schema choices beyond the brief
+- **Decision:** `categories` has timestamps; `business_hours`, `holidays` and `ticket_sequences` have none; `attachments.stored_name` is unique; `ticket_import_errors.row_number` keeps its name (reserved in MySQL 8, safe because Laravel always backtick-quotes identifiers).
+- **Why this one:** Timestamps only where they carry meaning; a unique on-disk name stops two rows pointing at one file.
+- **Trade-off:** Hand-written raw SQL must quote `row_number`.
+
+### D-031 `selectListColumns()` separate from `withListRelations()`
+- **Decision:** `withListRelations()` eager loads `creator:id,name`, `assignee:id,name`, `category:id,name`; `selectListColumns()` limits ticket columns to `Ticket::LIST_COLUMNS` (no `description` TEXT).
+- **Options considered:** One combined scope; two composable scopes.
+- **Why this one:** Lists use both; detail pages reuse the relations without losing columns. Under strict mode, reading an unselected column throws, so a list needing more columns fails loudly in tests. A test proves 3 rows and 30 rows cost the same 5 queries.
+- **Trade-off:** Callers combine the two scopes.

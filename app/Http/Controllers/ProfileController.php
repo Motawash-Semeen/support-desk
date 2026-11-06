@@ -7,6 +7,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Redirect;
+use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class ProfileController extends Controller
@@ -47,6 +48,12 @@ class ProfileController extends Controller
         ]);
 
         $user = $request->user();
+
+        if ($user->hasTicketHistory()) {
+            throw ValidationException::withMessages([
+                'password' => __('Accounts with ticket history cannot be deleted. Please contact support.'),
+            ])->errorBag('userDeletion');
+        }
 
         Auth::logout();
 
