@@ -42,6 +42,15 @@ class Attachment extends Model
         ];
     }
 
+    /**
+     * Location on the attachment disk. Grouped per ticket; the file name is the
+     * UUID-based stored_name, never the user-supplied original name.
+     */
+    public function path(): string
+    {
+        return "attachments/{$this->ticket_id}/{$this->stored_name}";
+    }
+
     /** @return BelongsTo<Ticket, $this> */
     public function ticket(): BelongsTo
     {

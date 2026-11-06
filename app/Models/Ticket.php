@@ -100,6 +100,15 @@ class Ticket extends Model
         ];
     }
 
+    /**
+     * URLs use the human ticket number (served by its unique index), e.g.
+     * /tickets/TKT-2026-000042.
+     */
+    public function getRouteKeyName(): string
+    {
+        return 'ticket_number';
+    }
+
     /* ------------------------------------------------------------------ */
     /* Relationships */
     /* ------------------------------------------------------------------ */
@@ -274,5 +283,22 @@ class Ticket extends Model
     public function isSlaBreached(): bool
     {
         return $this->isActive() && $this->due_at !== null && $this->due_at->isPast();
+    }
+
+    /**
+     * 'breached' | 'at_risk' | 'on_track' for active tickets, null otherwise.
+     * Same rules as scopeSlaBreached() / scopeSlaApproaching().
+     */
+    public function slaState(): ?string
+    {
+        if (! $this->isActive() || $this->due_at === null) {
+            return null;
+        }
+
+        if ($this->due_at->isPast()) {
+            return 'breached';
+        }
+
+        return $this->sla_warning_at !== null && $this->sla_warning_at->lte(now()) ? 'at_risk' : 'on_track';
     }
 }

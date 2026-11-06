@@ -12,9 +12,19 @@
 
                 <!-- Navigation Links -->
                 <div class="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
-                    <x-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')">
-                        {{ __('Dashboard') }}
+                    <x-nav-link :href="route('tickets.index')" :active="request()->routeIs('tickets.*')">
+                        {{ __('Tickets') }}
                     </x-nav-link>
+                    @can('view-dashboard')
+                        <x-nav-link :href="route('staff.dashboard')" :active="request()->routeIs('staff.*')">
+                            {{ __('Staff dashboard') }}
+                        </x-nav-link>
+                    @endcan
+                    @can('manage-sla-settings')
+                        <x-nav-link :href="route('admin.sla-settings.index')" :active="request()->routeIs('admin.*')">
+                            {{ __('SLA settings') }}
+                        </x-nav-link>
+                    @endcan
                 </div>
             </div>
 
@@ -67,9 +77,19 @@
     <!-- Responsive Navigation Menu -->
     <div :class="{'block': open, 'hidden': ! open}" class="hidden sm:hidden">
         <div class="pt-2 pb-3 space-y-1">
-            <x-responsive-nav-link :href="route('dashboard')" :active="request()->routeIs('dashboard')">
-                {{ __('Dashboard') }}
+            <x-responsive-nav-link :href="route('tickets.index')" :active="request()->routeIs('tickets.*')">
+                {{ __('Tickets') }}
             </x-responsive-nav-link>
+            @can('view-dashboard')
+                <x-responsive-nav-link :href="route('staff.dashboard')" :active="request()->routeIs('staff.*')">
+                    {{ __('Staff dashboard') }}
+                </x-responsive-nav-link>
+            @endcan
+            @can('manage-sla-settings')
+                <x-responsive-nav-link :href="route('admin.sla-settings.index')" :active="request()->routeIs('admin.*')">
+                    {{ __('SLA settings') }}
+                </x-responsive-nav-link>
+            @endcan
         </div>
 
         <!-- Responsive Settings Options -->

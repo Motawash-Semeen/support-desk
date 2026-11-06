@@ -209,3 +209,76 @@ Verified with `EXPLAIN` on the seeded database: the breach scan uses `tickets_st
 - **Options considered:** One combined scope; two composable scopes.
 - **Why this one:** Lists use both; detail pages reuse the relations without losing columns. Under strict mode, reading an unselected column throws, so a list needing more columns fails loudly in tests. A test proves 3 rows and 30 rows cost the same 5 queries.
 - **Trade-off:** Callers combine the two scopes.
+
+---
+
+## Prompt 3 — Authorization
+
+### D-032 Single role column + Policies instead of spatie/laravel-permission
+- **Decision:** `users.role` (enum `Role`) plus Laravel Policies and two Gates.
+- **Options considered:** spatie/laravel-permission (roles/permissions tables); a custom permissions table; role column + policies.
+- **Why this one:** The spec has three fixed roles with ownership-based rules (customer owns the ticket, agent is the assignee). Ownership rules do not fit a flat permission list and need policies regardless; a permission package would add tables and a permission cache for little gain.
+- **Trade-off:** A fourth role means editing policies. Upgrade path: introduce spatie/laravel-permission for the role-only checks (`isStaff()`, `isAdmin()`), keep the ownership logic in policies.
+
+### D-033 Policies for per-record rules; `role` middleware only for coarse groups
+- **Decision:** `EnsureRole` (alias `role`, e.g. `role:admin,agent`) guards the staff area (`/staff/*`) and admin area (`/admin/*`). Every controller action still calls `$this->authorize()` against a policy or gate. The base `Controller` uses `AuthorizesRequests`.
+- **Options considered:** Middleware only; policies only; both.
+- **Why this one:** Middleware knows only the role, not the ticket; policies receive the model, so ownership and state rules are enforced uniformly. The middleware is a cheap outer fence that keeps whole areas closed even if an action forgets a check.
+- **Trade-off:** Two places mention roles. `EnsureRole` throws `AuthenticationException` for guests and `ValueError` on a role typo in a route definition, so misconfiguration fails loudly.
+
+### D-034 Scoped queries in addition to policies
+- **Decision:** Lists use `Ticket::visibleTo($user)`; single records use `TicketPolicy::view`.
+- **Options considered:** Policy filtering of collections after loading; scope only; scope + policy.
+- **Why this one:** Policies protect one record; scopes protect lists, searches, dashboards and exports at the SQL level (and with correct pagination counts). Both are needed so a customer never sees another customer's data.
+- **Trade-off:** Two rules must stay in sync; the HTTP tests cover both paths.
+
+### D-035 404 instead of 403 for customers touching other customers' tickets
+- **Decision:** `TicketPolicy::before()` returns `Response::denyAsNotFound()` for every ability when a customer is not the ticket's creator. `AttachmentPolicy` denies as not found too. Staff denials stay 403.
+- **Options considered:** 403 everywhere; a `visibleTo`-scoped route binding; `denyAsNotFound` in the policy.
+- **Why this one:** Ticket numbers are sequential (`TKT-2026-000123`), so a 403 would confirm that a number exists and enable enumeration. Doing it in the policy covers every ability (view, reply, close, ...), not just the GET route, and keeps one source of truth. An unknown ticket number and someone else's ticket produce the same 404.
+- **Trade-off:** A customer who mistypes a number cannot tell "missing" from "not yours" (intended).
+
+### D-036 Internal notes: who may add and who may see
+- **Decision:** `addInternalNote` = admin or the assigned agent. `viewInternalNotes` = any staff, and it is the ONLY switch for note visibility (replies list, note attachments, activity timeline).
+- **Options considered:** Any agent may add notes; only assignee/admin.
+- **Why this one:** The default the brief suggested. Notes stay attributable to the people working the ticket; other agents still read them for context.
+- **Trade-off:** A helping agent must be assigned (or ask the assignee) to leave a note.
+
+### D-037 What policies check vs. what Actions check
+- **Decision:** Policies check who may act, plus state preconditions that decide whether the action exists for this ticket at all: customer `update` only while Open; `accept` only unassigned and active; `assign`/`reassign`/`release` only active (and assigned, for reassign/release); customer `close`/`reopen` only when Resolved; staff `reopen` only when Resolved/Closed. Staff `resolve`/`close` are role-only; Actions re-validate every status change with `TicketStatus::canTransitionTo()` and return a friendly validation message.
+- **Options considered:** All state logic in policies; none in policies.
+- **Why this one:** Buttons hidden by `@can` match what the server allows, while illegal transitions get a 422-style message instead of a bare 403.
+- **Trade-off:** State rules appear in two layers; the enum is the single source for transitions.
+
+### D-038 Field-level edit rights through separate abilities
+- **Decision:** `update` covers subject/description; `changePriority` and `changeCategory` (admin or assignee) gate those fields. The update FormRequest will accept priority/category only when the user has those abilities.
+- **Options considered:** One `update` ability with role checks inside the FormRequest; separate abilities.
+- **Why this one:** The policy remains the only place that knows the rule; FormRequests and views ask the same question.
+- **Trade-off:** More ability names.
+
+### D-039 Ticket URLs use the ticket number; attachments use scoped bindings
+- **Decision:** `Ticket::getRouteKeyName()` = `ticket_number`. Downloads go through `/tickets/{ticket}/attachments/{attachment}` with `->scopeBindings()`, streamed by `AttachmentController` from the private disk at `attachments/{ticket_id}/{stored_name}`, with `Content-Disposition: attachment` and `X-Content-Type-Options: nosniff`. A missing file logs a warning with context and returns a friendly 404.
+- **Options considered:** Numeric ids in URLs; `/attachments/{id}` without the ticket; public URLs.
+- **Why this one:** Human-readable URLs; the scoped binding guarantees the attachment belongs to the ticket in the URL; the policy then decides access. Files never get a public URL.
+- **Trade-off:** Downloads pass through PHP.
+
+### D-040 Blade helpers are cosmetic
+- **Decision:** `@staff ... @endstaff` (`Blade::if`) and `@can(...)` hide staff UI and unavailable actions. No view check is relied on for security.
+- **Why this one:** Clear templates; every request is still authorized server-side.
+- **Trade-off:** None beyond keeping UI and policy names aligned.
+
+### D-041 Landing pages and the first role-gated screens
+- **Decision:** Breeze's `/dashboard` became a redirect (staff → `/staff/dashboard`, customers → `/tickets`). Added read-only screens so the authorization layers are exercised end to end: ticket list and detail (internal notes and activity for staff only), staff dashboard (five indexed counts + the most overdue tickets), admin SLA settings overview (editing comes with the SLA prompt). Import routes will join the `role:admin` group.
+- **Options considered:** Keep Breeze's static dashboard; build stubs only; minimal real screens.
+- **Why this one:** The 404 and internal-note rules can be tested over HTTP, not only at the policy level.
+- **Trade-off:** These screens will be extended by later prompts.
+
+### D-042 Breeze auth and profile controllers are exempt from policies
+- **Decision:** Login, registration, password and profile controllers keep Breeze's behaviour without `authorize()` calls.
+- **Why this one:** They act only on the authenticated user (or a guest), so there is no other record to protect; their access is enforced by `auth`/`guest` middleware, `current_password` and signed URLs.
+- **Trade-off:** The "every controller calls authorize()" rule applies to application controllers, not the scaffolded auth ones.
+
+### D-043 `App\Support\BusinessTime` for display
+- **Decision:** Views format timestamps with `BusinessTime::format()` (UTC → `config('support.timezone')`).
+- **Why this one:** One place for the conversion D-015 promised; storage and queries stay UTC.
+- **Trade-off:** Views must use the helper rather than `->format()` directly.
