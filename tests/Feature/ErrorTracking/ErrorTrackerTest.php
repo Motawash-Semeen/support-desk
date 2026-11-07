@@ -1,8 +1,8 @@
 <?php
 
-use App\Models\ErrorLog;
 use App\Models\User;
-use App\Services\ErrorTracking\ErrorRecorder;
+use App\Modules\Logs\Models\ErrorLog;
+use App\Modules\Logs\Services\ErrorRecorder;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
 

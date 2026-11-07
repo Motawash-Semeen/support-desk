@@ -1,14 +1,9 @@
 <?php
 
-use App\Models\ErrorLog;
 use App\Models\Notification;
-use Illuminate\Foundation\Inspiring;
+use App\Modules\Logs\Models\ErrorLog;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
-
-Artisan::command('inspire', function () {
-    $this->comment(Inspiring::quote());
-})->purpose('Display an inspiring quote');
 
 /*
 |--------------------------------------------------------------------------
@@ -55,7 +50,7 @@ Schedule::command('attachments:purge-orphans')
     ->onOneServer();
 
 // Read in-app notifications older than 90 days (App\Models\Notification::prunable)
-// and old error-log entries (App\Models\ErrorLog::prunable).
+// and old error-log entries (App\Modules\Logs\Models\ErrorLog::prunable).
 Schedule::command('model:prune', ['--model' => [Notification::class, ErrorLog::class]])
     ->dailyAt('04:00')
     ->withoutOverlapping(10)

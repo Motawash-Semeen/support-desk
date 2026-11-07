@@ -1,16 +1,16 @@
 <?php
 
-use App\Actions\Replies\AddReply;
-use App\Enums\ActivityType;
-use App\Enums\ReplyType;
-use App\Enums\TicketStatus;
-use App\Events\ReplyAdded;
-use App\Exceptions\ReplyNotAllowed;
-use App\Models\Attachment;
-use App\Models\Ticket;
-use App\Models\TicketReply;
 use App\Models\User;
-use App\Services\TicketActivityRecorder;
+use App\Modules\Activity\Enums\ActivityType;
+use App\Modules\Activity\Services\TicketActivityRecorder;
+use App\Modules\Conversation\Actions\AddReply;
+use App\Modules\Conversation\Enums\ReplyType;
+use App\Modules\Conversation\Events\ReplyAdded;
+use App\Modules\Conversation\Exceptions\ReplyNotAllowed;
+use App\Modules\Conversation\Models\Attachment;
+use App\Modules\Conversation\Models\TicketReply;
+use App\Modules\Tickets\Enums\TicketStatus;
+use App\Modules\Tickets\Models\Ticket;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;

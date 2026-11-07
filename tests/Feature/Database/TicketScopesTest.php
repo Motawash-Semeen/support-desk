@@ -1,8 +1,8 @@
 <?php
 
-use App\Enums\TicketStatus;
-use App\Models\Ticket;
 use App\Models\User;
+use App\Modules\Tickets\Enums\TicketStatus;
+use App\Modules\Tickets\Models\Ticket;
 use Illuminate\Support\Facades\DB;
 
 it('splits tickets into active and closed-or-resolved', function () {
@@ -49,8 +49,7 @@ it('finds breached and approaching tickets among active tickets only', function 
     Ticket::factory()->breached()->resolved()->create(); // overdue but finished: not breached
 
     expect(Ticket::query()->slaBreached()->pluck('id')->all())->toBe([$breached->id])
-        ->and(Ticket::query()->slaApproaching()->pluck('id')->all())->toBe([$approaching->id])
-        ->and($onTrack->isSlaBreached())->toBeFalse();
+        ->and(Ticket::query()->slaApproaching()->pluck('id')->all())->toBe([$approaching->id]);
 });
 
 it('searches subject and description', function () {

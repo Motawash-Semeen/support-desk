@@ -1,14 +1,14 @@
 <?php
 
-use App\Enums\ActivityType;
-use App\Enums\TicketPriority;
-use App\Enums\TicketStatus;
-use App\Models\Category;
-use App\Models\Ticket;
 use App\Models\User;
-use App\Services\Sla\SlaCalculator;
-use App\Services\Sla\SlaResult;
-use App\Services\TicketNumberGenerator;
+use App\Modules\Activity\Enums\ActivityType;
+use App\Modules\Sla\Services\SlaCalculator;
+use App\Modules\Sla\Services\SlaResult;
+use App\Modules\Tickets\Enums\TicketPriority;
+use App\Modules\Tickets\Enums\TicketStatus;
+use App\Modules\Tickets\Models\Category;
+use App\Modules\Tickets\Models\Ticket;
+use App\Modules\Tickets\Services\TicketNumberGenerator;
 use Carbon\CarbonInterface;
 use Illuminate\Database\QueryException;
 

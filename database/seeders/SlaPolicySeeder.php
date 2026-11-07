@@ -2,8 +2,8 @@
 
 namespace Database\Seeders;
 
-use App\Enums\TicketPriority;
-use App\Models\SlaPolicy;
+use App\Modules\Sla\Models\SlaPolicy;
+use App\Modules\Tickets\Enums\TicketPriority;
 use Illuminate\Database\Seeder;
 
 /**

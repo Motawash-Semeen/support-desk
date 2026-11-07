@@ -1,17 +1,17 @@
 <?php
 
-use App\Actions\Assignment\ClaimTicket;
-use App\Actions\Tickets\CreateTicket;
-use App\Enums\ActivityType;
-use App\Enums\TicketPriority;
-use App\Jobs\AutoAssignTicket;
-use App\Models\Category;
-use App\Models\Ticket;
 use App\Models\User;
-use App\Services\Assignment\AssignmentStrategy;
-use App\Services\Assignment\LeastWorkloadStrategy;
-use App\Services\Assignment\RoundRobinStrategy;
-use App\Services\TicketActivityRecorder;
+use App\Modules\Activity\Enums\ActivityType;
+use App\Modules\Activity\Services\TicketActivityRecorder;
+use App\Modules\Assignment\Actions\ClaimTicket;
+use App\Modules\Assignment\Jobs\AutoAssignTicket;
+use App\Modules\Assignment\Services\AssignmentStrategy;
+use App\Modules\Assignment\Services\LeastWorkloadStrategy;
+use App\Modules\Assignment\Services\RoundRobinStrategy;
+use App\Modules\Tickets\Actions\CreateTicket;
+use App\Modules\Tickets\Enums\TicketPriority;
+use App\Modules\Tickets\Models\Category;
+use App\Modules\Tickets\Models\Ticket;
 use Carbon\CarbonImmutable;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Contracts\Queue\ShouldBeUnique;

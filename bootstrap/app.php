@@ -2,7 +2,7 @@
 
 use App\Http\Middleware\EnsureRole;
 use App\Http\Middleware\SecurityHeaders;
-use App\Http\Middleware\TrackHttpErrors;
+use App\Modules\Logs\Http\Middleware\TrackHttpErrors;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -15,6 +15,10 @@ return Application::configure(basePath: dirname(__DIR__))
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
     )
+    // Modules (L5Modular) keep their own listeners and commands. Module routes,
+    // views and migrations are registered by L5Modular's service provider.
+    ->withEvents(discover: [__DIR__.'/../app/Modules/*/Listeners'])
+    ->withCommands(glob(__DIR__.'/../app/Modules/*/Console/Commands', GLOB_ONLYDIR) ?: [])
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'role' => EnsureRole::class,

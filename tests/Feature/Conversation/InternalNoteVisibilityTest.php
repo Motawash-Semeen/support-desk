@@ -1,14 +1,14 @@
 <?php
 
-use App\Actions\Assignment\ClaimTicket;
-use App\Actions\Replies\AddReply;
-use App\Enums\ActivityType;
-use App\Enums\ReplyType;
-use App\Models\Ticket;
 use App\Models\User;
-use App\Notifications\AgentRepliedNotification;
-use App\Notifications\InternalNoteAddedNotification;
-use App\Notifications\TicketAssignedNotification;
+use App\Modules\Activity\Enums\ActivityType;
+use App\Modules\Assignment\Actions\ClaimTicket;
+use App\Modules\Conversation\Actions\AddReply;
+use App\Modules\Conversation\Enums\ReplyType;
+use App\Modules\Notifications\Notifications\AgentRepliedNotification;
+use App\Modules\Notifications\Notifications\InternalNoteAddedNotification;
+use App\Modules\Notifications\Notifications\TicketAssignedNotification;
+use App\Modules\Tickets\Models\Ticket;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\Notification;

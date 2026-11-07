@@ -1,11 +1,11 @@
 <?php
 
-use App\Enums\ReplyType;
-use App\Models\Attachment;
-use App\Models\Category;
-use App\Models\Ticket;
-use App\Models\TicketReply;
 use App\Models\User;
+use App\Modules\Conversation\Enums\ReplyType;
+use App\Modules\Conversation\Models\Attachment;
+use App\Modules\Conversation\Models\TicketReply;
+use App\Modules\Tickets\Models\Category;
+use App\Modules\Tickets\Models\Ticket;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 

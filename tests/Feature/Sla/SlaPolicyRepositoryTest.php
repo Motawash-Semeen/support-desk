@@ -1,10 +1,10 @@
 <?php
 
-use App\Enums\TicketPriority;
-use App\Models\BusinessHour;
-use App\Models\Holiday;
-use App\Models\SlaPolicy;
-use App\Services\Sla\SlaPolicyRepository;
+use App\Modules\Sla\Models\BusinessHour;
+use App\Modules\Sla\Models\Holiday;
+use App\Modules\Sla\Models\SlaPolicy;
+use App\Modules\Sla\Services\SlaPolicyRepository;
+use App\Modules\Tickets\Enums\TicketPriority;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 

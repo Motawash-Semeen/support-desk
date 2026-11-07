@@ -2,7 +2,7 @@
 
 namespace Database\Factories;
 
-use App\Models\BusinessHour;
+use App\Modules\Sla\Models\BusinessHour;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -10,6 +10,8 @@ use Illuminate\Database\Eloquent\Factories\Factory;
  */
 class BusinessHourFactory extends Factory
 {
+    protected $model = BusinessHour::class;
+
     public function definition(): array
     {
         return [

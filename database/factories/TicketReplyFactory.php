@@ -2,10 +2,10 @@
 
 namespace Database\Factories;
 
-use App\Enums\ReplyType;
-use App\Models\Ticket;
-use App\Models\TicketReply;
 use App\Models\User;
+use App\Modules\Conversation\Enums\ReplyType;
+use App\Modules\Conversation\Models\TicketReply;
+use App\Modules\Tickets\Models\Ticket;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -13,6 +13,8 @@ use Illuminate\Database\Eloquent\Factories\Factory;
  */
 class TicketReplyFactory extends Factory
 {
+    protected $model = TicketReply::class;
+
     public function definition(): array
     {
         return [

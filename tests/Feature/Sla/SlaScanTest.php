@@ -1,12 +1,12 @@
 <?php
 
-use App\Actions\Sla\EscalateTicket;
-use App\Enums\ActivityType;
-use App\Enums\EscalationKind;
-use App\Models\Ticket;
 use App\Models\User;
-use App\Notifications\SlaApproachingNotification;
-use App\Notifications\SlaBreachedNotification;
+use App\Modules\Activity\Enums\ActivityType;
+use App\Modules\Notifications\Notifications\SlaApproachingNotification;
+use App\Modules\Notifications\Notifications\SlaBreachedNotification;
+use App\Modules\Sla\Actions\EscalateTicket;
+use App\Modules\Sla\Enums\EscalationKind;
+use App\Modules\Tickets\Models\Ticket;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Notification;
 

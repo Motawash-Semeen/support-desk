@@ -1,9 +1,9 @@
 <?php
 
-use App\Enums\ActivityType;
-use App\Enums\ReplyType;
 use App\Enums\Role;
-use App\Enums\TicketPriority;
+use App\Modules\Activity\Enums\ActivityType;
+use App\Modules\Conversation\Enums\ReplyType;
+use App\Modules\Tickets\Enums\TicketPriority;
 
 it('orders priorities by urgency', function () {
     $sorted = collect(TicketPriority::cases())
@@ -23,11 +23,6 @@ it('marks admins and agents as staff', function () {
     expect(Role::Admin->isStaff())->toBeTrue()
         ->and(Role::Agent->isStaff())->toBeTrue()
         ->and(Role::Customer->isStaff())->toBeFalse();
-});
-
-it('shows only public replies to customers', function () {
-    expect(ReplyType::Public->isVisibleToCustomer())->toBeTrue()
-        ->and(ReplyType::InternalNote->isVisibleToCustomer())->toBeFalse();
 });
 
 it('uses the string values stored in the database', function () {

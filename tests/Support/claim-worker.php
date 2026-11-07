@@ -1,8 +1,8 @@
 <?php
 
-use App\Actions\Assignment\ClaimTicket;
-use App\Models\Ticket;
 use App\Models\User;
+use App\Modules\Assignment\Actions\ClaimTicket;
+use App\Modules\Tickets\Models\Ticket;
 use Illuminate\Contracts\Console\Kernel;
 
 /*

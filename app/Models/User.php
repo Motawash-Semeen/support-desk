@@ -3,6 +3,11 @@
 namespace App\Models;
 
 use App\Enums\Role;
+use App\Modules\Conversation\Models\Attachment;
+use App\Modules\Conversation\Models\TicketReply;
+use App\Modules\Imports\Models\TicketImport;
+use App\Modules\Tickets\Models\Category;
+use App\Modules\Tickets\Models\Ticket;
 use Database\Factories\UserFactory;
 use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Builder;

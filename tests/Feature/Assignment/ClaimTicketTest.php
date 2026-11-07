@@ -1,16 +1,16 @@
 <?php
 
-use App\Actions\Assignment\AssignTicket;
-use App\Actions\Assignment\ClaimTicket;
-use App\Actions\Assignment\ReleaseTicket;
-use App\Enums\ActivityType;
-use App\Enums\TicketStatus;
-use App\Events\TicketAssigned;
-use App\Events\TicketReleased;
-use App\Events\TicketStatusChanged;
-use App\Exceptions\AssignmentConflict;
-use App\Models\Ticket;
 use App\Models\User;
+use App\Modules\Activity\Enums\ActivityType;
+use App\Modules\Assignment\Actions\AssignTicket;
+use App\Modules\Assignment\Actions\ClaimTicket;
+use App\Modules\Assignment\Actions\ReleaseTicket;
+use App\Modules\Assignment\Events\TicketAssigned;
+use App\Modules\Assignment\Events\TicketReleased;
+use App\Modules\Assignment\Exceptions\AssignmentConflict;
+use App\Modules\Tickets\Enums\TicketStatus;
+use App\Modules\Tickets\Events\TicketStatusChanged;
+use App\Modules\Tickets\Models\Ticket;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Event;
 

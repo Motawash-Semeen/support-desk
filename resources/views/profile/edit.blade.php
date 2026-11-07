@@ -1,7 +1,7 @@
 <x-app-layout :title="__('Profile')" :subtitle="__('Your account details, password and availability.')" width="medium">
     <div class="space-y-6">
         @can('update-availability')
-            @include('profile.partials.update-availability-form')
+            @include('Assignment::partials.availability-form')
         @endcan
 
         @include('profile.partials.update-profile-information-form')

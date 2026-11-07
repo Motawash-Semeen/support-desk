@@ -1,6 +1,6 @@
 <?php
 
-use App\Support\SafeFilename;
+use App\Modules\Conversation\Support\SafeFilename;
 
 it('cleans user-supplied file names', function (string $input, string $expected) {
     expect(SafeFilename::clean($input))->toBe($expected);

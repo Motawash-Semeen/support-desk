@@ -1,9 +1,9 @@
 <?php
 
-use App\Enums\ActivityType;
-use App\Enums\TicketPriority;
-use App\Models\Ticket;
 use App\Models\User;
+use App\Modules\Activity\Enums\ActivityType;
+use App\Modules\Tickets\Enums\TicketPriority;
+use App\Modules\Tickets\Models\Ticket;
 use Carbon\CarbonImmutable;
 
 beforeEach(function () {

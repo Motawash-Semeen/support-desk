@@ -22,7 +22,7 @@
                 <p class="mt-3 text-base text-ink-500">@yield('message')</p>
 
                 {{-- Server errors: the error-log entry the admin can look up. --}}
-                @php($reference = str_starts_with(trim($__env->yieldContent('code')), '5') ? \App\Services\ErrorTracking\ErrorRecorder::lastRecordedId() : null)
+                @php($reference = str_starts_with(trim($__env->yieldContent('code')), '5') ? \App\Modules\Logs\Services\ErrorRecorder::lastRecordedId() : null)
                 @if ($reference)
                     <p class="mt-4 text-sm text-ink-500">
                         {{ __('Reference') }} <span class="ticket-no">#{{ $reference }}</span> · {{ __('quote it if you contact support.') }}

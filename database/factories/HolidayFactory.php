@@ -2,7 +2,7 @@
 
 namespace Database\Factories;
 
-use App\Models\Holiday;
+use App\Modules\Sla\Models\Holiday;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -13,6 +13,8 @@ use Illuminate\Database\Eloquent\Factories\Factory;
  */
 class HolidayFactory extends Factory
 {
+    protected $model = Holiday::class;
+
     public function definition(): array
     {
         return [

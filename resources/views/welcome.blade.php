@@ -9,7 +9,6 @@
             <div class="mx-auto flex max-w-6xl items-center justify-between px-6 py-5">
                 <x-brand :dark="true" />
                 <nav class="flex items-center gap-2 text-sm">
-                    <a href="#features" class="hidden rounded-lg px-3 py-2 font-medium text-ink-300 hover:text-white sm:inline-block">{{ __('Features') }}</a>
                     @auth
                         <a href="{{ route('dashboard') }}" class="btn btn-primary">{{ __('Open dashboard') }} <x-icon name="arrow-right" class="h-4 w-4" /></a>
                     @else
@@ -85,7 +84,11 @@
             </div>
         </section>
 
-        {{-- Features --}}
+        {{--
+            Hidden for now: features, "how it works", call to action and footer.
+            Remove this comment's opening and closing markers to bring them back
+            (and restore the "Features" link in the header: <a href="#features">).
+
         <section id="features" class="mx-auto max-w-6xl px-6 py-24">
             <div class="max-w-2xl">
                 <p class="text-sm font-semibold text-brand-600">{{ __('Everything a support team needs') }}</p>
@@ -111,7 +114,6 @@
             </div>
         </section>
 
-        {{-- How it works --}}
         <section class="border-y border-ink-100 bg-ink-50">
             <div class="mx-auto grid max-w-6xl gap-10 px-6 py-20 md:grid-cols-3">
                 @foreach ([
@@ -128,7 +130,6 @@
             </div>
         </section>
 
-        {{-- CTA --}}
         <section class="mx-auto max-w-6xl px-6 py-24">
             <div class="relative overflow-hidden rounded-3xl bg-ink-950 px-8 py-14 text-center sm:px-16">
                 <div class="pointer-events-none absolute -right-20 -top-20 h-72 w-72 rounded-full bg-brand-500/30 blur-3xl" aria-hidden="true"></div>
@@ -153,5 +154,6 @@
                 <p>&copy; {{ date('Y') }} {{ config('app.name', 'Support Desk') }}</p>
             </div>
         </footer>
+        --}}
     </body>
 </html>

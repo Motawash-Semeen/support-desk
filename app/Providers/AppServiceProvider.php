@@ -2,16 +2,20 @@
 
 namespace App\Providers;
 
-use App\Models\ErrorLog;
-use App\Models\Ticket;
 use App\Models\User;
-use App\Services\Assignment\AssignmentStrategy;
-use App\Services\Sla\BusinessHoursSlaCalculator;
-use App\Services\Sla\SlaCalculator;
-use App\Services\Sla\SlaPolicyRepository;
-use App\Services\Sla\SlaRules;
+use App\Modules\Assignment\Services\AssignmentStrategy;
+use App\Modules\Conversation\Models\Attachment;
+use App\Modules\Conversation\Policies\AttachmentPolicy;
+use App\Modules\Logs\Models\ErrorLog;
+use App\Modules\Sla\Services\BusinessHoursSlaCalculator;
+use App\Modules\Sla\Services\SlaCalculator;
+use App\Modules\Sla\Services\SlaPolicyRepository;
+use App\Modules\Sla\Services\SlaRules;
+use App\Modules\Tickets\Models\Ticket;
+use App\Modules\Tickets\Policies\TicketPolicy;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Contracts\Foundation\Application;
+use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Blade;
@@ -54,6 +58,7 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         $this->configureEloquent();
+        $this->configureModules();
         $this->configureAuthorization();
         $this->configureRouteBindings();
         $this->configureRateLimits();
@@ -92,14 +97,32 @@ class AppServiceProvider extends ServiceProvider
     }
 
     /**
-     * Model policies (TicketPolicy, AttachmentPolicy) are auto-discovered from
-     * App\Policies. Gates here cover abilities that have no model.
+     * Module models live outside App\Models, so neither policies nor factories
+     * can be found by Laravel's naming convention: policies are mapped here and
+     * factories are looked up by class name in database/factories.
+     */
+    private function configureModules(): void
+    {
+        Gate::policy(Ticket::class, TicketPolicy::class);
+        Gate::policy(Attachment::class, AttachmentPolicy::class);
+
+        Factory::guessFactoryNamesUsing(
+            fn (string $model): string => 'Database\\Factories\\'.class_basename($model).'Factory'
+        );
+    }
+
+    /**
+     * Gates here cover abilities that have no model; model policies are
+     * mapped in configureModules().
      */
     private function configureAuthorization(): void
     {
         Gate::define('view-dashboard', fn (User $user): bool => $user->isStaff());
         Gate::define('manage-sla-settings', fn (User $user): bool => $user->isAdmin());
         Gate::define('view-error-log', fn (User $user): bool => $user->isAdmin());
+        // opcodesio/log-viewer's own gate (raw files in storage/logs); the route
+        // middleware in config/log-viewer.php already requires role:admin.
+        Gate::define('viewLogViewer', fn (?User $user): bool => (bool) $user?->isAdmin());
         Gate::define('view-unassigned-queue', fn (User $user): bool => $user->isStaff());
         Gate::define('search-customers', fn (User $user): bool => $user->isStaff());
         Gate::define('update-availability', fn (User $user): bool => $user->isAgent());

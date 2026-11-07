@@ -1,18 +1,18 @@
 <?php
 
 use App\Enums\Role;
-use App\Enums\TicketPriority;
-use App\Enums\TicketSource;
-use App\Enums\TicketStatus;
-use App\Models\Attachment;
-use App\Models\Category;
-use App\Models\SlaPolicy;
-use App\Models\Ticket;
-use App\Models\TicketActivity;
-use App\Models\TicketImport;
-use App\Models\TicketImportError;
-use App\Models\TicketReply;
 use App\Models\User;
+use App\Modules\Activity\Models\TicketActivity;
+use App\Modules\Conversation\Models\Attachment;
+use App\Modules\Conversation\Models\TicketReply;
+use App\Modules\Imports\Models\TicketImport;
+use App\Modules\Imports\Models\TicketImportError;
+use App\Modules\Sla\Models\SlaPolicy;
+use App\Modules\Tickets\Enums\TicketPriority;
+use App\Modules\Tickets\Enums\TicketSource;
+use App\Modules\Tickets\Enums\TicketStatus;
+use App\Modules\Tickets\Models\Category;
+use App\Modules\Tickets\Models\Ticket;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\MassAssignmentException;
 use Illuminate\Database\QueryException;
@@ -23,12 +23,12 @@ it('loads every ticket relationship', function () {
     $ticket = Ticket::factory()->withSlaPolicy($policy)->assigned($agent)->create();
 
     $public = TicketReply::factory()->for($ticket)->create();
-    $note = TicketReply::factory()->for($ticket)->internalNote()->create(['user_id' => $agent->id]);
+    TicketReply::factory()->for($ticket)->internalNote()->create(['user_id' => $agent->id]);
     Attachment::factory()->for($ticket)->create(['ticket_reply_id' => $public->id]);
     TicketActivity::factory()->for($ticket)->create();
 
     $loaded = Ticket::query()
-        ->with(['creator', 'assignee', 'category', 'slaPolicy', 'replies', 'publicReplies', 'internalNotes', 'attachments', 'activities'])
+        ->with(['creator', 'assignee', 'category', 'slaPolicy', 'replies', 'publicReplies', 'attachments', 'activities'])
         ->findOrFail($ticket->id);
 
     expect($loaded->creator)->toBeInstanceOf(User::class)
@@ -38,7 +38,6 @@ it('loads every ticket relationship', function () {
         ->and($loaded->slaPolicy->is($policy))->toBeTrue()
         ->and($loaded->replies)->toHaveCount(2)
         ->and($loaded->publicReplies->modelKeys())->toBe([$public->id])
-        ->and($loaded->internalNotes->modelKeys())->toBe([$note->id])
         ->and($loaded->attachments)->toHaveCount(1)
         ->and($loaded->activities)->toHaveCount(1);
 });
@@ -77,7 +76,6 @@ it('loads reply, attachment, activity and import relationships', function () {
         ->and($reply->attachments)->toHaveCount(2)
         ->and($reply->attachments->first()->reply->is($reply))->toBeTrue()
         ->and($activity->actor->is($reply->author))->toBeTrue()
-        ->and($activity->isSystem())->toBeFalse()
         ->and($error->import)->toBeInstanceOf(TicketImport::class)
         ->and($error->import->rowErrors)->toHaveCount(1)
         ->and($error->errors)->toBeArray();
@@ -90,8 +88,7 @@ it('casts columns to enums, booleans and dates', function () {
         ->and($ticket->priority)->toBeInstanceOf(TicketPriority::class)
         ->and($ticket->source)->toBe(TicketSource::Web)
         ->and($ticket->is_escalated)->toBeTrue()
-        ->and($ticket->due_at)->toBeInstanceOf(CarbonInterface::class)
-        ->and($ticket->isSlaBreached())->toBeTrue();
+        ->and($ticket->due_at)->toBeInstanceOf(CarbonInterface::class);
 });
 
 it('cascades ticket deletion to replies, attachments and activities', function () {

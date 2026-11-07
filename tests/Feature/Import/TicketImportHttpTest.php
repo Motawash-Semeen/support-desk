@@ -1,10 +1,10 @@
 <?php
 
-use App\Enums\ImportStatus;
-use App\Jobs\ProcessTicketImport;
-use App\Models\TicketImport;
-use App\Models\TicketImportError;
 use App\Models\User;
+use App\Modules\Imports\Enums\ImportStatus;
+use App\Modules\Imports\Jobs\ProcessTicketImport;
+use App\Modules\Imports\Models\TicketImport;
+use App\Modules\Imports\Models\TicketImportError;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;

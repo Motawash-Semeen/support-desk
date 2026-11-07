@@ -1,13 +1,13 @@
 <?php
 
-use App\Models\Attachment;
-use App\Models\Category;
-use App\Models\Ticket;
-use App\Models\TicketActivity;
-use App\Models\TicketImport;
-use App\Models\TicketReply;
 use App\Models\User;
-use App\Notifications\TicketResolvedNotification;
+use App\Modules\Activity\Models\TicketActivity;
+use App\Modules\Conversation\Models\Attachment;
+use App\Modules\Conversation\Models\TicketReply;
+use App\Modules\Imports\Models\TicketImport;
+use App\Modules\Notifications\Notifications\TicketResolvedNotification;
+use App\Modules\Tickets\Models\Category;
+use App\Modules\Tickets\Models\Ticket;
 use Illuminate\Support\Facades\Route;
 
 /*

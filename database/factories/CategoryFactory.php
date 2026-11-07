@@ -2,7 +2,7 @@
 
 namespace Database\Factories;
 
-use App\Models\Category;
+use App\Modules\Tickets\Models\Category;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
 
@@ -11,6 +11,8 @@ use Illuminate\Support\Str;
  */
 class CategoryFactory extends Factory
 {
+    protected $model = Category::class;
+
     public function definition(): array
     {
         $name = Str::title(fake()->unique()->words(2, true));

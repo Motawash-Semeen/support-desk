@@ -2,7 +2,7 @@
 
 namespace Database\Seeders;
 
-use App\Services\Sla\SlaPolicyRepository;
+use App\Modules\Sla\Services\SlaPolicyRepository;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
@@ -11,7 +11,7 @@ class DatabaseSeeder extends Seeder
     use WithoutModelEvents;
 
     /**
-     * Reference data is seeded everywhere; demo users and tickets never in production.
+     * Reference data is seeded everywhere; sample users and tickets never in production.
      */
     public function run(): void
     {
@@ -27,7 +27,7 @@ class DatabaseSeeder extends Seeder
         if (! app()->isProduction()) {
             $this->call([
                 UserSeeder::class,
-                DemoTicketSeeder::class,
+                TicketSeeder::class,
             ]);
         }
     }

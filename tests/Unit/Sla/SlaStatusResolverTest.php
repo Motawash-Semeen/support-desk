@@ -1,7 +1,7 @@
 <?php
 
-use App\Enums\SlaStatus;
-use App\Services\Sla\SlaStatusResolver;
+use App\Modules\Sla\Enums\SlaStatus;
+use App\Modules\Sla\Services\SlaStatusResolver;
 use Carbon\CarbonImmutable;
 
 it('derives SLA status by comparison only', function (?string $due, ?string $warning, ?string $finished, bool $active, ?SlaStatus $expected) {

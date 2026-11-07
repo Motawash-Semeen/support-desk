@@ -1,11 +1,11 @@
 <?php
 
-use App\Actions\Tickets\CreateTicket;
-use App\Models\Category;
-use App\Models\Ticket;
-use App\Models\TicketSequence;
 use App\Models\User;
-use App\Services\TicketNumberGenerator;
+use App\Modules\Tickets\Actions\CreateTicket;
+use App\Modules\Tickets\Models\Category;
+use App\Modules\Tickets\Models\Ticket;
+use App\Modules\Tickets\Models\TicketSequence;
+use App\Modules\Tickets\Services\TicketNumberGenerator;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;

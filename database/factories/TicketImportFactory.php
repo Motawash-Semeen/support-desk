@@ -2,9 +2,9 @@
 
 namespace Database\Factories;
 
-use App\Enums\ImportStatus;
-use App\Models\TicketImport;
 use App\Models\User;
+use App\Modules\Imports\Enums\ImportStatus;
+use App\Modules\Imports\Models\TicketImport;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
 
@@ -13,6 +13,8 @@ use Illuminate\Support\Str;
  */
 class TicketImportFactory extends Factory
 {
+    protected $model = TicketImport::class;
+
     public function definition(): array
     {
         return [

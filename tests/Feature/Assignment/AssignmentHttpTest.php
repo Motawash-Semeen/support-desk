@@ -1,8 +1,8 @@
 <?php
 
-use App\Enums\TicketStatus;
-use App\Models\Ticket;
 use App\Models\User;
+use App\Modules\Tickets\Enums\TicketStatus;
+use App\Modules\Tickets\Models\Ticket;
 use Carbon\CarbonImmutable;
 
 beforeEach(function () {

@@ -2,7 +2,7 @@
 
 namespace Database\Seeders;
 
-use App\Models\BusinessHour;
+use App\Modules\Sla\Models\BusinessHour;
 use Illuminate\Database\Seeder;
 
 /**

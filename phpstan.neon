@@ -5,6 +5,17 @@ parameters:
     level: 5
     # Models declare casts in a casts() method (Laravel 11+); read it.
     parseModelCastsMethod: true
+    # Model properties come from the migrations: core ones plus each module's.
+    databaseMigrationsPath:
+        - database/migrations
+        - app/Modules/Activity/database/migrations
+        - app/Modules/Assignment/database/migrations
+        - app/Modules/Conversation/database/migrations
+        - app/Modules/Imports/database/migrations
+        - app/Modules/Logs/database/migrations
+        - app/Modules/Notifications/database/migrations
+        - app/Modules/Sla/database/migrations
+        - app/Modules/Tickets/database/migrations
     paths:
         - app
         - config

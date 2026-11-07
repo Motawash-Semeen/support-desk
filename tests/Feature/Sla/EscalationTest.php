@@ -1,19 +1,19 @@
 <?php
 
-use App\Actions\Sla\EscalateTicket;
-use App\Actions\Tickets\UpdateTicket;
-use App\Enums\ActivityType;
-use App\Enums\EscalationKind;
-use App\Enums\TicketPriority;
-use App\Enums\TicketStatus;
-use App\Events\SlaBreached;
-use App\Events\SlaWarningReached;
-use App\Jobs\AutoAssignTicket;
-use App\Jobs\EscalateTicketJob;
 use App\Models\Notification as DatabaseNotificationModel;
-use App\Models\Ticket;
 use App\Models\User;
-use App\Notifications\TicketEscalatedNotification;
+use App\Modules\Activity\Enums\ActivityType;
+use App\Modules\Assignment\Jobs\AutoAssignTicket;
+use App\Modules\Notifications\Notifications\TicketEscalatedNotification;
+use App\Modules\Sla\Actions\EscalateTicket;
+use App\Modules\Sla\Enums\EscalationKind;
+use App\Modules\Sla\Events\SlaBreached;
+use App\Modules\Sla\Events\SlaWarningReached;
+use App\Modules\Sla\Jobs\EscalateTicketJob;
+use App\Modules\Tickets\Actions\UpdateTicket;
+use App\Modules\Tickets\Enums\TicketPriority;
+use App\Modules\Tickets\Enums\TicketStatus;
+use App\Modules\Tickets\Models\Ticket;
 use Carbon\Carbon;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;

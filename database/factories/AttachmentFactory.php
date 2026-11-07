@@ -2,9 +2,9 @@
 
 namespace Database\Factories;
 
-use App\Models\Attachment;
-use App\Models\Ticket;
 use App\Models\User;
+use App\Modules\Conversation\Models\Attachment;
+use App\Modules\Tickets\Models\Ticket;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
 
@@ -15,6 +15,8 @@ use Illuminate\Support\Str;
  */
 class AttachmentFactory extends Factory
 {
+    protected $model = Attachment::class;
+
     public function definition(): array
     {
         $extension = fake()->randomElement(['pdf', 'png', 'txt']);

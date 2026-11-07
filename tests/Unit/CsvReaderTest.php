@@ -1,6 +1,6 @@
 <?php
 
-use App\Support\Csv\CsvReader;
+use App\Modules\Imports\Support\CsvReader;
 use Illuminate\Support\LazyCollection;
 
 function csvFile(string $contents): string

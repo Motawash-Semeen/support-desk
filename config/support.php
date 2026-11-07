@@ -1,7 +1,7 @@
 <?php
 
-use App\Services\Assignment\LeastWorkloadStrategy;
-use App\Services\Assignment\RoundRobinStrategy;
+use App\Modules\Assignment\Services\LeastWorkloadStrategy;
+use App\Modules\Assignment\Services\RoundRobinStrategy;
 
 /*
 |--------------------------------------------------------------------------
@@ -101,12 +101,12 @@ return [
     ],
 
     /*
-    | Auto-assignment strategy resolved by App\Services\Assignment.
+    | Auto-assignment strategy resolved by App\Modules\Assignment\Services.
     */
     'assignment' => [
         'strategy' => env('SUPPORT_ASSIGNMENT_STRATEGY', 'least_workload'),
 
-        // Strategy name => App\Services\Assignment\AssignmentStrategy implementation.
+        // Strategy name => App\Modules\Assignment\Services\AssignmentStrategy implementation.
         'strategies' => [
             'least_workload' => LeastWorkloadStrategy::class,
             'round_robin' => RoundRobinStrategy::class,

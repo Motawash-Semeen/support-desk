@@ -1,10 +1,10 @@
 <?php
 
-use App\Enums\ActivityType;
-use App\Enums\TicketStatus;
-use App\Models\Category;
-use App\Models\Ticket;
 use App\Models\User;
+use App\Modules\Activity\Enums\ActivityType;
+use App\Modules\Tickets\Enums\TicketStatus;
+use App\Modules\Tickets\Models\Category;
+use App\Modules\Tickets\Models\Ticket;
 use Symfony\Component\Mailer\SentMessage;
 
 /*

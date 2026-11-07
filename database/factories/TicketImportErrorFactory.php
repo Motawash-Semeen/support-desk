@@ -2,8 +2,8 @@
 
 namespace Database\Factories;
 
-use App\Models\TicketImport;
-use App\Models\TicketImportError;
+use App\Modules\Imports\Models\TicketImport;
+use App\Modules\Imports\Models\TicketImportError;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -11,6 +11,8 @@ use Illuminate\Database\Eloquent\Factories\Factory;
  */
 class TicketImportErrorFactory extends Factory
 {
+    protected $model = TicketImportError::class;
+
     public function definition(): array
     {
         return [

@@ -1,6 +1,6 @@
 <?php
 
-use App\Logging\ErrorTrackerHandler;
+use App\Modules\Logs\Logging\ErrorTrackerHandler;
 use Monolog\Handler\NullHandler;
 use Monolog\Handler\StreamHandler;
 use Monolog\Handler\SyslogUdpHandler;

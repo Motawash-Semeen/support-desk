@@ -1,10 +1,10 @@
 <?php
 
-use App\Enums\ActivityType;
-use App\Models\Ticket;
-use App\Models\TicketActivity;
-use App\Models\TicketReply;
 use App\Models\User;
+use App\Modules\Activity\Enums\ActivityType;
+use App\Modules\Activity\Models\TicketActivity;
+use App\Modules\Conversation\Models\TicketReply;
+use App\Modules\Tickets\Models\Ticket;
 
 beforeEach(function () {
     $this->owner = User::factory()->create();

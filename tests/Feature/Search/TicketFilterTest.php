@@ -1,11 +1,11 @@
 <?php
 
-use App\Enums\TicketPriority;
-use App\Enums\TicketStatus;
-use App\Filters\TicketFilter;
-use App\Models\Category;
-use App\Models\Ticket;
 use App\Models\User;
+use App\Modules\Tickets\Enums\TicketPriority;
+use App\Modules\Tickets\Enums\TicketStatus;
+use App\Modules\Tickets\Filters\TicketFilter;
+use App\Modules\Tickets\Models\Category;
+use App\Modules\Tickets\Models\Ticket;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 

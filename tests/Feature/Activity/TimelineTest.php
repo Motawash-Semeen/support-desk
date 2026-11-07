@@ -1,9 +1,9 @@
 <?php
 
-use App\Enums\ActivityType;
-use App\Models\Ticket;
-use App\Models\TicketActivity;
 use App\Models\User;
+use App\Modules\Activity\Enums\ActivityType;
+use App\Modules\Activity\Models\TicketActivity;
+use App\Modules\Tickets\Models\Ticket;
 use Illuminate\Support\Facades\Notification;
 
 beforeEach(function () {

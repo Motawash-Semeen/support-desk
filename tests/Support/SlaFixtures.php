@@ -2,10 +2,10 @@
 
 namespace Tests\Support;
 
-use App\Enums\TicketPriority;
-use App\Services\Sla\BusinessCalendar;
-use App\Services\Sla\SlaPolicyRule;
-use App\Services\Sla\SlaRules;
+use App\Modules\Sla\Services\BusinessCalendar;
+use App\Modules\Sla\Services\SlaPolicyRule;
+use App\Modules\Sla\Services\SlaRules;
+use App\Modules\Tickets\Enums\TicketPriority;
 use Carbon\CarbonImmutable;
 
 /**

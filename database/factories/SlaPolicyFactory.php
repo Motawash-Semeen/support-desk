@@ -2,8 +2,8 @@
 
 namespace Database\Factories;
 
-use App\Enums\TicketPriority;
-use App\Models\SlaPolicy;
+use App\Modules\Sla\Models\SlaPolicy;
+use App\Modules\Tickets\Enums\TicketPriority;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -11,6 +11,8 @@ use Illuminate\Database\Eloquent\Factories\Factory;
  */
 class SlaPolicyFactory extends Factory
 {
+    protected $model = SlaPolicy::class;
+
     /**
      * priority is unique in the table, so the default picks a priority not yet
      * used in this test; use forPriority() to pin one.

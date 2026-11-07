@@ -1,13 +1,13 @@
 <?php
 
-use App\Actions\Tickets\CreateTicket;
-use App\Enums\TicketPriority;
-use App\Models\BusinessHour;
-use App\Models\Category;
-use App\Models\Holiday;
-use App\Models\SlaPolicy;
-use App\Models\Ticket;
 use App\Models\User;
+use App\Modules\Sla\Models\BusinessHour;
+use App\Modules\Sla\Models\Holiday;
+use App\Modules\Sla\Models\SlaPolicy;
+use App\Modules\Tickets\Actions\CreateTicket;
+use App\Modules\Tickets\Enums\TicketPriority;
+use App\Modules\Tickets\Models\Category;
+use App\Modules\Tickets\Models\Ticket;
 use Carbon\CarbonImmutable;
 use Database\Seeders\BusinessHourSeeder;
 use Database\Seeders\SlaPolicySeeder;

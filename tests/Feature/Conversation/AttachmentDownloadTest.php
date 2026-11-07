@@ -1,9 +1,9 @@
 <?php
 
-use App\Models\Attachment;
-use App\Models\Ticket;
-use App\Models\TicketReply;
 use App\Models\User;
+use App\Modules\Conversation\Models\Attachment;
+use App\Modules\Conversation\Models\TicketReply;
+use App\Modules\Tickets\Models\Ticket;
 use Illuminate\Support\Facades\Storage;
 
 beforeEach(function () {

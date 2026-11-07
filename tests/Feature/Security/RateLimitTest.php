@@ -1,9 +1,9 @@
 <?php
 
-use App\Models\Attachment;
-use App\Models\Category;
-use App\Models\Ticket;
 use App\Models\User;
+use App\Modules\Conversation\Models\Attachment;
+use App\Modules\Tickets\Models\Category;
+use App\Modules\Tickets\Models\Ticket;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;

@@ -1,7 +1,7 @@
 <?php
 
-use App\Models\Ticket;
-use App\Models\TicketActivity;
+use App\Modules\Activity\Models\TicketActivity;
+use App\Modules\Tickets\Models\Ticket;
 use Illuminate\Support\Facades\Route;
 
 it('rejects update, save and delete on an activity', function () {

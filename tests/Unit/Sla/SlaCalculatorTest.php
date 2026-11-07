@@ -1,8 +1,8 @@
 <?php
 
-use App\Enums\TicketPriority;
-use App\Services\Sla\BusinessHoursSlaCalculator;
-use App\Services\Sla\SlaPolicyRule;
+use App\Modules\Sla\Services\BusinessHoursSlaCalculator;
+use App\Modules\Sla\Services\SlaPolicyRule;
+use App\Modules\Tickets\Enums\TicketPriority;
 use Carbon\CarbonImmutable;
 use Tests\Support\SlaFixtures as F;
 

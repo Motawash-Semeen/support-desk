@@ -1,10 +1,10 @@
 <?php
 
-use App\Enums\TicketPriority;
-use App\Models\Ticket;
 use App\Models\User;
-use App\Services\Assignment\LeastWorkloadStrategy;
-use App\Services\Assignment\RoundRobinStrategy;
+use App\Modules\Assignment\Services\LeastWorkloadStrategy;
+use App\Modules\Assignment\Services\RoundRobinStrategy;
+use App\Modules\Tickets\Enums\TicketPriority;
+use App\Modules\Tickets\Models\Ticket;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 

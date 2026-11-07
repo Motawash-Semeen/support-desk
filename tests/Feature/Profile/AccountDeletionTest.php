@@ -1,7 +1,7 @@
 <?php
 
-use App\Models\Ticket;
 use App\Models\User;
+use App\Modules\Tickets\Models\Ticket;
 
 it('refuses to delete an account that has ticket history', function () {
     $user = User::factory()->create();

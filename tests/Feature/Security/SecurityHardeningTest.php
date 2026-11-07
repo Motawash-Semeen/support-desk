@@ -1,9 +1,9 @@
 <?php
 
 use App\Enums\Role;
-use App\Models\Attachment;
-use App\Models\Ticket;
 use App\Models\User;
+use App\Modules\Conversation\Models\Attachment;
+use App\Modules\Tickets\Models\Ticket;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Facades\Storage;
 
@@ -66,7 +66,9 @@ test('the profile form cannot change role or availability', function () {
 });
 
 test('no model disables mass-assignment protection', function () {
-    foreach (File::allFiles(app_path('Models')) as $file) {
+    $models = [app_path('Models'), ...glob(app_path('Modules/*/Models'), GLOB_ONLYDIR)];
+
+    foreach (collect($models)->flatMap(fn ($dir) => File::allFiles($dir)) as $file) {
         expect($file->getContents())->not->toMatch('/\$guarded\s*=\s*\[\s*\]/')
             ->not->toContain('unguard(');
     }
@@ -90,7 +92,8 @@ test('a script in a ticket subject or description is rendered as text', function
 });
 
 test('no application view echoes raw, unescaped output', function () {
-    $raw = collect(File::allFiles(resource_path('views')))
+    $raw = collect([resource_path('views'), ...glob(app_path('Modules/*/resources/views'), GLOB_ONLYDIR)])
+        ->flatMap(fn ($dir) => File::allFiles($dir))
         ->reject(fn ($file) => str_contains($file->getPathname(), DIRECTORY_SEPARATOR.'vendor'.DIRECTORY_SEPARATOR))
         ->filter(fn ($file) => str_contains($file->getContents(), '{!!'))
         ->map(fn ($file) => $file->getRelativePathname())

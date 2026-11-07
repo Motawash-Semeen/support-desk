@@ -2,13 +2,13 @@
 
 namespace Database\Factories;
 
-use App\Enums\TicketPriority;
-use App\Enums\TicketSource;
-use App\Enums\TicketStatus;
-use App\Models\Category;
-use App\Models\SlaPolicy;
-use App\Models\Ticket;
 use App\Models\User;
+use App\Modules\Sla\Models\SlaPolicy;
+use App\Modules\Tickets\Enums\TicketPriority;
+use App\Modules\Tickets\Enums\TicketSource;
+use App\Modules\Tickets\Enums\TicketStatus;
+use App\Modules\Tickets\Models\Category;
+use App\Modules\Tickets\Models\Ticket;
 use Carbon\CarbonImmutable;
 use DateTimeInterface;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -26,6 +26,8 @@ use Illuminate\Database\Eloquent\Factories\Factory;
  */
 class TicketFactory extends Factory
 {
+    protected $model = Ticket::class;
+
     /**
      * Factory numbers come from a separate range (900001+) so they can never
      * collide with numbers issued by TicketNumberGenerator, which starts at 1.

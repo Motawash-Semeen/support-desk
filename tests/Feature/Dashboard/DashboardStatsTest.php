@@ -1,12 +1,12 @@
 <?php
 
-use App\Enums\ActivityType;
-use App\Enums\TicketPriority;
-use App\Enums\TicketStatus;
-use App\Models\Ticket;
-use App\Models\TicketActivity;
 use App\Models\User;
-use App\Services\Dashboard\DashboardStatsService;
+use App\Modules\Activity\Enums\ActivityType;
+use App\Modules\Activity\Models\TicketActivity;
+use App\Modules\Dashboard\Services\DashboardStatsService;
+use App\Modules\Tickets\Enums\TicketPriority;
+use App\Modules\Tickets\Enums\TicketStatus;
+use App\Modules\Tickets\Models\Ticket;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;

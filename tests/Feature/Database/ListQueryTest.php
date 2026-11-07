@@ -1,7 +1,7 @@
 <?php
 
-use App\Models\Ticket;
 use App\Models\User;
+use App\Modules\Tickets\Models\Ticket;
 use Illuminate\Database\Eloquent\MissingAttributeException;
 use Illuminate\Database\LazyLoadingViolationException;
 use Illuminate\Pagination\LengthAwarePaginator;

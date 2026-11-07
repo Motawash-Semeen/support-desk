@@ -1,14 +1,13 @@
 <?php
 
-use App\Enums\ReplyType;
-use App\Listeners\NotifyReplyAdded;
-use App\Models\Ticket;
-use App\Models\TicketReply;
 use App\Models\User;
-use App\Notifications\AgentRepliedNotification;
-use App\Notifications\TicketImportFinishedNotification;
-use App\Notifications\TicketNotification;
-use App\Notifications\TicketResolvedNotification;
+use App\Modules\Conversation\Enums\ReplyType;
+use App\Modules\Conversation\Models\TicketReply;
+use App\Modules\Notifications\Listeners\NotifyReplyAdded;
+use App\Modules\Notifications\Notifications\AgentRepliedNotification;
+use App\Modules\Notifications\Notifications\TicketNotification;
+use App\Modules\Notifications\Notifications\TicketResolvedNotification;
+use App\Modules\Tickets\Models\Ticket;
 use Illuminate\Contracts\Events\ShouldHandleEventsAfterCommit;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Events\CallQueuedListener;
@@ -22,18 +21,18 @@ beforeEach(function () {
 });
 
 arch('every listener is queued and runs after commit')
-    ->expect('App\Listeners')
+    ->expect(moduleNamespaces('Listeners'))
     ->classes()
     ->toImplement([ShouldQueue::class, ShouldHandleEventsAfterCommit::class]);
 
 arch('every ticket notification shares the queued base class')
-    ->expect('App\Notifications')
+    ->expect('App\Modules\Notifications\Notifications')
     ->classes()
     ->toExtend(TicketNotification::class)
-    ->ignoring([TicketNotification::class, TicketImportFinishedNotification::class]);
+    ->ignoring(TicketNotification::class);
 
 arch('every notification is queued')
-    ->expect('App\Notifications')
+    ->expect(moduleNamespaces('Notifications'))
     ->classes()
     ->toImplement(ShouldQueue::class);
 

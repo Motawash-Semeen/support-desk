@@ -2,7 +2,7 @@
 
 namespace App\Http\Controllers;
 
-use App\Models\Ticket;
+use App\Modules\Tickets\Models\Ticket;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 

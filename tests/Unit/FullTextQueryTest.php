@@ -1,6 +1,6 @@
 <?php
 
-use App\Support\FullTextQuery;
+use App\Modules\Tickets\Support\FullTextQuery;
 
 it('builds a boolean expression with required, prefix-matched words', function (string $input, ?string $expected) {
     expect(FullTextQuery::boolean($input))->toBe($expected);

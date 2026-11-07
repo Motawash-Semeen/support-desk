@@ -2,7 +2,7 @@
 
 namespace Database\Factories;
 
-use App\Models\TicketSequence;
+use App\Modules\Tickets\Models\TicketSequence;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -10,6 +10,8 @@ use Illuminate\Database\Eloquent\Factories\Factory;
  */
 class TicketSequenceFactory extends Factory
 {
+    protected $model = TicketSequence::class;
+
     public function definition(): array
     {
         return [

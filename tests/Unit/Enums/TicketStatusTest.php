@@ -1,6 +1,6 @@
 <?php
 
-use App\Enums\TicketStatus;
+use App\Modules\Tickets\Enums\TicketStatus;
 
 it('treats open, in progress and waiting as active', function (TicketStatus $status, bool $active) {
     expect($status->isActive())->toBe($active);

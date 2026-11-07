@@ -44,3 +44,24 @@ expect()->extend('toBeJsonObject', function (array $expected) {
 
     return $this;
 });
+
+/*
+|--------------------------------------------------------------------------
+| Module helpers
+|--------------------------------------------------------------------------
+|
+| moduleNamespaces('Http\Controllers') lists that layer's namespace in every
+| L5Modular module that has it, for architecture tests.
+|
+*/
+
+/** @return list<string> */
+function moduleNamespaces(string $layer): array
+{
+    $dirs = glob(dirname(__DIR__).'/app/Modules/*/'.str_replace('\\', '/', $layer), GLOB_ONLYDIR) ?: [];
+
+    return array_values(array_map(
+        fn (string $dir): string => 'App\\Modules\\'.basename(dirname($dir, substr_count($layer, '\\') + 1)).'\\'.$layer,
+        $dirs,
+    ));
+}

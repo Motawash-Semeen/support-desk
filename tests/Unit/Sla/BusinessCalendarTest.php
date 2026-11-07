@@ -1,7 +1,7 @@
 <?php
 
-use App\Exceptions\NoBusinessHoursConfigured;
-use App\Services\Sla\BusinessCalendar;
+use App\Modules\Sla\Exceptions\NoBusinessHoursConfigured;
+use App\Modules\Sla\Services\BusinessCalendar;
 use Carbon\CarbonImmutable;
 use Tests\Support\SlaFixtures as F;
 

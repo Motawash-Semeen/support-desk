@@ -1,12 +1,12 @@
 <?php
 
-use App\Enums\ReplyType;
 use App\Enums\Role;
-use App\Enums\TicketStatus;
-use App\Models\Attachment;
-use App\Models\Ticket;
-use App\Models\TicketReply;
 use App\Models\User;
+use App\Modules\Conversation\Enums\ReplyType;
+use App\Modules\Conversation\Models\Attachment;
+use App\Modules\Conversation\Models\TicketReply;
+use App\Modules\Tickets\Enums\TicketStatus;
+use App\Modules\Tickets\Models\Ticket;
 use Illuminate\Support\Facades\Gate;
 
 function attachmentOn(?ReplyType $replyType): Attachment

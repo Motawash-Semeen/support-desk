@@ -1,6 +1,6 @@
 <?php
 
-use App\Services\TicketNumberGenerator;
+use App\Modules\Tickets\Services\TicketNumberGenerator;
 use Tests\TestCase;
 
 /*

@@ -1,20 +1,20 @@
 <?php
 
-use App\Actions\Assignment\AssignTicket;
-use App\Actions\Assignment\ClaimTicket;
-use App\Actions\Replies\AddReply;
-use App\Actions\Tickets\CreateTicket;
-use App\Actions\Tickets\ResolveTicket;
-use App\Enums\ReplyType;
-use App\Models\Category;
-use App\Models\Ticket;
 use App\Models\User;
-use App\Notifications\AgentRepliedNotification;
-use App\Notifications\CustomerRepliedNotification;
-use App\Notifications\InternalNoteAddedNotification;
-use App\Notifications\TicketAssignedNotification;
-use App\Notifications\TicketCreatedNotification;
-use App\Notifications\TicketResolvedNotification;
+use App\Modules\Assignment\Actions\AssignTicket;
+use App\Modules\Assignment\Actions\ClaimTicket;
+use App\Modules\Conversation\Actions\AddReply;
+use App\Modules\Conversation\Enums\ReplyType;
+use App\Modules\Notifications\Notifications\AgentRepliedNotification;
+use App\Modules\Notifications\Notifications\CustomerRepliedNotification;
+use App\Modules\Notifications\Notifications\InternalNoteAddedNotification;
+use App\Modules\Notifications\Notifications\TicketAssignedNotification;
+use App\Modules\Notifications\Notifications\TicketCreatedNotification;
+use App\Modules\Notifications\Notifications\TicketResolvedNotification;
+use App\Modules\Tickets\Actions\CreateTicket;
+use App\Modules\Tickets\Actions\ResolveTicket;
+use App\Modules\Tickets\Models\Category;
+use App\Modules\Tickets\Models\Ticket;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
 

@@ -6,7 +6,7 @@ order in which decisions were made, not their importance. Superseded entries are
 
 | Area | Entries |
 |---|---|
-| [Foundation and stack](#foundation-and-stack) | D-001, D-002, D-003, D-004, D-005, D-006, D-007, D-008, D-011, D-012, D-013, D-015, D-043, D-126, D-127, D-129, D-130 |
+| [Foundation and stack](#foundation-and-stack) | D-001, D-002, D-003, D-004, D-005, D-006, D-007, D-008, D-011, D-012, D-013, D-015, D-043, D-126, D-127, D-129, D-130, D-131, D-132, D-133, D-134 |
 | [Database](#database) | D-016, D-017, D-018, D-019, D-020, D-021, D-022, D-023, D-024, D-025, D-027, D-028, D-030, D-031, D-055 |
 | [Authorization and security](#authorization-and-security) | D-026, D-032, D-033, D-034, D-035, D-036, D-037, D-038, D-039, D-040, D-041, D-042, D-051, D-120, D-122, D-123, D-124, D-125 |
 | [Tickets and lifecycle](#tickets-and-lifecycle) | D-044, D-045, D-046, D-029, D-047, D-048, D-049, D-052, D-053, D-054 |
@@ -33,7 +33,7 @@ order in which decisions were made, not their importance. Superseded entries are
 - **Trade-off:** Less polished, less interactive UX; full page reloads.
 
 ### D-003 Action classes instead of fat controllers or a Repository layer
-- **Decision:** Business logic in `app/Actions/*` (one class per use case) and `app/Services/*` (reusable domain logic). Controllers only authorize, validate, call an Action, respond.
+- **Decision:** Business logic in `app/Actions/*` (one class per use case) and `app/Services/*` (reusable domain logic). Controllers only authorize, validate, call an Action, respond. *(Amended by D-131: Actions and Services now live in each module's `Actions` and `Services` folders. The rule is unchanged.)*
 - **Options considered:** Logic in controllers; logic in models; Repository + Service layers; Actions + Services.
 - **Why this one:** Each use case (`CreateTicket`, `AssignTicket`) is one testable class with exactly one transaction boundary, callable equally from controllers, jobs, commands and tests. A Repository over Eloquent adds an indirection layer that re-wraps the query builder without adding value in Laravel.
 - **Trade-off:** More, smaller files; contributors must know the convention.
@@ -105,6 +105,7 @@ order in which decisions were made, not their importance. Superseded entries are
 - **Trade-off:** A production deploy must switch three values to Redis; the README's production section says so.
 
 ### D-127 Honest KNOWN_LIMITATIONS instead of pretending completeness
+- *(Superseded by D-133: the limitations are now a short list in `docs/GUIDE.md`.)*
 - **Decision:** `docs/KNOWN_LIMITATIONS.md` lists every deliberate boundary with its impact and how to lift it, followed by an ordered scale-up path. Examples:
   - the SLA clock is not paused while waiting for the customer;
   - one timezone;
@@ -133,7 +134,7 @@ order in which decisions were made, not their importance. Superseded entries are
 
 ### D-130 In-app error tracker fed by the logger
 - **Decision:** Every error is stored in an `error_logs` table and shown to admins at `/admin/errors`. There are two feeds:
-  - a Monolog handler (`App\Logging\ErrorTrackerHandler`, channel `tracker`), always part of the default `stack`, which stores every log entry at `ERROR_TRACKER_LEVEL` (default `error`) or above. This includes every exception Laravel reports and every explicit `Log::error()` (failed notifications, failed imports and the rest).
+  - a Monolog handler (`App\Modules\Logs\Logging\ErrorTrackerHandler`, channel `tracker`), always part of the default `stack`, which stores every log entry at `ERROR_TRACKER_LEVEL` (default `error`) or above. This includes every exception Laravel reports and every explicit `Log::error()` (failed notifications, failed imports and the rest).
   - a global middleware (`TrackHttpErrors`) that stores 4xx responses, which Laravel never reports. 409 and 422 are normal outcomes, and 404s for files browsers probe on their own (`favicon.ico`, `robots.txt` and similar) are noise, so neither is stored.
 
   How `ErrorRecorder` stores them:
@@ -147,6 +148,58 @@ order in which decisions were made, not their importance. Superseded entries are
 - **Options considered:** Sentry, Flare or Bugsnag (external SaaS, an account and a data-processing agreement); Laravel Telescope (a development tool that records far more than errors, and is not meant to run for everyone in production); a log-file viewer package (reads only the file, cannot group or resolve, and ships its own front end that needs CSP exceptions).
 - **Why this one:** It meets "log every error and show it to the admin" with no external service or package, in the app's own design and authorization model. Grouping keeps the list readable during an incident instead of showing thousands of identical lines. The file log remains the complete raw record.
 - **Trade-off:** No alerting (email or Slack) on new errors yet, and no cross-service tracing. KNOWN_LIMITATIONS lists the upgrade path, which is to ship errors to a hosted tracker. An error storm costs one upsert per occurrence on the logs connection.
+
+### D-131 The whole app in L5Modular modules
+- **Decision:** `artem-schander/l5-modular` organises the code into nine modules under `app/Modules`:
+  - Tickets, Conversation, Assignment, Sla, Activity, Notifications, Dashboard, Imports and Logs;
+  - each module keeps L5Modular's layout: `Models`, `Actions`, `Services`, `Http/{Controllers,Requests,Resources}`, `Events`, `Listeners`, `Jobs`, `Policies`, `Console/Commands`, `resources/views`, `routes/web.php` and `database/migrations`.
+
+  The core stays in the standard folders: users, roles, auth, profile, the two security middlewares, providers, layouts, Blade components and shared helpers. Three settings make Laravel find classes outside its naming conventions:
+  - `bootstrap/app.php` discovers listeners and commands in every module;
+  - `AppServiceProvider::configureModules` maps `TicketPolicy` and `AttachmentPolicy`, and resolves factories by class name;
+  - `phpstan.neon` lists each module's migrations so Larastan still knows model properties.
+
+  Files were moved with `git mv`, so history follows them. Namespaces, imports, view names (`view('Tickets::index')`, `<x-Activity::ticket-timeline>`) and route names are unchanged in behaviour. Every URL, route name and middleware stack is the same as before. The architecture tests now cover the module namespaces and fail if code reappears in the old layer folders.
+- **Options considered:** Keep the layer-first layout (`app/Actions`, `app/Services` …); nwidart/laravel-modules (one service provider, composer file and asset pipeline per module); move only the newest features into modules; L5Modular for everything.
+- **Why this one:** It was requested, and it groups each feature's code (a ticket's model, Actions, views, routes and migrations) in one folder, which is easier to navigate than nine layer folders that each hold a slice of every feature. L5Modular is light: one provider that registers routes, views and migrations by convention, with no per-module boilerplate. Moving the whole app avoids a half-and-half layout.
+- **Trade-off:** L5Modular 2.1 is no longer actively maintained. Its module-factory loader calls a class removed in Laravel 8, so factories stay in `database/factories`, and an architecture test stops anyone adding `database/factories` inside a module. It works with Laravel 12 because it only uses stable APIs (`loadViewsFrom`, `loadMigrationsFrom`, route groups). If it breaks on an upgrade, replacing it means about twenty lines in a provider. Modules depend on each other directly (Tickets uses Sla and Activity), so they are ownership boundaries, not separately deployable packages. Rows written before the move keep the old class names in `notifications.type` and in queued jobs, so drain the queues before deploying this change.
+
+### D-132 opcodesio/log-viewer next to the in-app error log
+- **Decision:** `opcodesio/log-viewer` 3.x serves the raw log files at `/admin/log-viewer`, with a sidebar link and a **Raw log files** button on the error log. The in-app error log (D-130) stays the primary, grouped view. Hardening:
+  - **Access:** the page and its API use the same `auth`, `verified` and `role:admin` middleware as the rest of `/admin`, plus the package's own `viewLogViewer` gate (admins).
+  - **Files:** only `storage/logs`. The default Apache, Nginx and Homebrew paths were removed.
+  - **CSP:** the page view is overridden in `resources/views/vendor/log-viewer` so both inline scripts carry the request's nonce. The global CSP stays unchanged. It already allows `'unsafe-eval'` (Alpine) and inline styles, which the viewer's Vue build needs.
+  - **Tests:** `LogViewerAccessTest` covers access for guests, agents, customers and admins on the page and the API, and checks that every inline script carries the nonce. The route-authorization audit covers the package's routes too.
+- **Options considered:** Replace the error tracker with the log viewer; add it alongside; another viewer such as rap2hpoutre/laravel-log-viewer (unmaintained, no API); no file viewer.
+- **Why this one:** Requested, and confirmed after comparing the two: both are kept. They complement each other. The tracker groups, counts and resolves errors. The file viewer shows everything else in the log (info and warning lines, full context, other channels) without shell access to the server. Overriding one Blade view keeps the strict CSP instead of adding `'unsafe-inline'` scripts for every page.
+- **Trade-off:** The view override has to be checked when the package is upgraded. The viewer's API trusts the session only for requests from `APP_URL`'s host and port (`LOG_VIEWER_API_STATEFUL_DOMAINS` adds others). Admins can download and delete log files from the browser, which is acceptable because they already hold the highest role.
+
+### D-133 Fewer docs, one codebase guide, a smaller landing page
+- **Decision:** The documentation is down to three files:
+  - `README.md`: setup, demo accounts, workers, tests and admin pages;
+  - `docs/GUIDE.md`: the folder and module map, how each feature works, a "where do I change X" table, security, tests and limitations;
+  - `docs/DECISIONS.md` and `docs/PERFORMANCE.md`, without its per-query appendix.
+
+  ARCHITECTURE, ASSIGNMENT, SLA, SECURITY, TESTING, KNOWN_LIMITATIONS and REVIEW_CHECKLIST were folded into the guide or dropped. The landing page shows only the header and hero banner; the features, "how it works", call-to-action and footer sections are kept in a Blade comment so they can be restored. Code nothing in the app called was removed: `SlaStatus::appliesToActiveTickets`, `Holiday::scopeBetweenDates`, both `isSystem()` methods, `Ticket::internalNotes`, `Ticket::isSlaBreached`, `ReplyType::isVisibleToCustomer`, the `reassign` policy ability (assignment is authorized by `assign`) and the `inspire` command.
+- **Options considered:** Keep every document; one long README; a guide plus decisions.
+- **Why this one:** Requested. A new developer needs one map of where things are and how to change them. Nine overlapping documents repeated each other and drifted. Unused methods look like features and mislead readers.
+- **Trade-off:** Some depth is gone: the SLA worked-example table, the per-query EXPLAIN appendix and the scale-up path. All of it remains in git history. The performance tooling (`perf:explain`, `PerformanceSeeder`) and the migration history were kept unchanged.
+
+### D-134 Realistic sample data, produced by replaying the real Actions
+- **Decision:** The demo data was replaced with realistic sample data:
+  - `UserSeeder`: a named team (one admin, five agents with specialities, one of them on leave) and 14 customer businesses, all on the reserved `.test` domain;
+  - `TicketSeeder`: 42 tickets written as real support conversations (`database/seeders/data/tickets.php`).
+
+  How `TicketSeeder` builds them:
+  - Each ticket has a flow: new, stale, assigned, working, waiting, approaching, breached, resolved, late, closed or reopened.
+  - For each ticket it plans a timeline. Agents act in business hours; customers write at any time.
+  - It searches backwards for a creation time that puts every step in the past and leaves the ticket in its flow's state, checked against the real SLA calculator.
+  - It then replays all steps in global time order through the real Actions (`CreateTicket`, `ClaimTicket`, `AddReply`, `UpdateTicket`, `ChangeTicketStatus`, `AssignTicket`, `EscalateTicket`), moving the clock to each step.
+  - Between steps it applies the warnings, breaches and level-2 escalations that `sla:scan` would have made at that moment.
+  - Listeners run inline, so bell notifications exist with the right times. Mail goes to the array mailer. Auto-assign and escalation jobs are faked, because the seeder plays their part. Notifications older than two days are marked read.
+- **Options considered:** Keep factory/Faker data (lorem ipsum, random states written straight into columns); hand-write rows into the tables; replay the Actions.
+- **Why this one:** Requested ("real-like data"). Replaying the Actions makes the data consistent by construction: gapless numbers in creation order, business-hours deadlines, one history entry per real change, reply-driven status changes, and auto-close at the scheduler's 02:00 run. Data written straight into columns can contradict the rules (for example a reply before the ticket existed, or a breach with no escalation). `SeederTest` checks that every ticket ends in its flow's state and that nothing is dated in the future.
+- **Trade-off:** Seeding takes longer (it runs about 300 real transactions) and depends on the current time: the same seed run on another day gives different dates, though always the same states. A fixed set of 42 tickets is smaller than the old 200, so for volume testing use `PerformanceSeeder`.
 
 ## Database
 
@@ -547,7 +600,7 @@ Verified with `EXPLAIN` on the seeded database: the breach scan uses `tickets_st
 - **Trade-off:** A ticket gets two activity rows for a priority change (`priority_changed` + `sla_recalculated`).
 
 ### D-064 Admin SLA settings screen
-- **Decision:** `/admin/sla-settings` (role:admin + `manage-sla-settings`) edits resolution minutes (1–20,160), warning threshold (0.05–0.99, two decimals) and active flag per priority; working day, opening and closing time per weekday (closing after opening, at least one working day); and holidays (unique date). Each save is an Action in `app/Actions/Sla`, runs in a transaction, logs who changed what, and flushes the cache through the observer. This screen reads the rule tables directly because it owns them.
+- **Decision:** `/admin/sla-settings` (role:admin + `manage-sla-settings`) edits resolution minutes (1–20,160), warning threshold (0.05–0.99, two decimals) and active flag per priority; working day, opening and closing time per weekday (closing after opening, at least one working day); and holidays (unique date). Each save is an Action in `app/Modules/Sla/Actions`, runs in a transaction, logs who changed what, and flushes the cache through the observer. This screen reads the rule tables directly because it owns them.
 - **Options considered:** Config-only rules (needs a deploy to change); a generic settings key/value table.
 - **Why this one:** The smallest editor that covers every rule the calculator uses.
 - **Trade-off:** No per-row history of rule changes beyond the log.
@@ -607,7 +660,7 @@ Verified with `EXPLAIN` on the seeded database: the breach scan uses `tickets_st
 - **Trade-off:** PHP serves the bytes. At scale, move the disk to S3 and redirect to a short-lived temporary URL generated only after the policy check (the disk name is already config: `SUPPORT_ATTACHMENTS_DISK`).
 
 ### D-076 Extension whitelist plus content-based MIME check
-- **Decision:** `App\Support\AttachmentRules` (built from `config('support.attachments')`) is shared by the ticket form and the reply form: at most 5 files; each `file`, `max:5120` KB, `extensions:` (the client's extension) and `mimes:` (the extension guessed from the file's content via finfo) both limited to pdf, png, jpg, jpeg, txt, docx, xlsx, csv; plus `SafeUpload`, which rejects empty files and any executable extension anywhere in the name (`invoice.php.pdf`). `invoice.pdf.exe` fails the extension whitelist. PHP, phtml, exe, sh, js, html, svg… are never on the whitelist. Tests upload real files whose content is PHP but whose name is `.pdf`, and they are rejected.
+- **Decision:** `App\Modules\Conversation\Support\AttachmentRules` (built from `config('support.attachments')`) is shared by the ticket form and the reply form: at most 5 files; each `file`, `max:5120` KB, `extensions:` (the client's extension) and `mimes:` (the extension guessed from the file's content via finfo) both limited to pdf, png, jpg, jpeg, txt, docx, xlsx, csv; plus `SafeUpload`, which rejects empty files and any executable extension anywhere in the name (`invoice.php.pdf`). `invoice.pdf.exe` fails the extension whitelist. PHP, phtml, exe, sh, js, html, svg… are never on the whitelist. Tests upload real files whose content is PHP but whose name is `.pdf`, and they are rejected.
 - **Options considered:** A blacklist of dangerous extensions; extension check only; MIME check only; both.
 - **Why this one:** Blacklists always miss something; checking both the name and the content catches renamed executables.
 - **Trade-off:** Legitimate but unusual types (e.g. `.zip`, `.heic`) need a config change. Text-based formats such as CSV are sniffed as `text/plain` and accepted through `txt`.
@@ -681,7 +734,7 @@ Verified with `EXPLAIN` on the seeded database: the breach scan uses `tickets_st
 - **Trade-off:** No total page count on the timeline (Previous/Next only).
 
 ### D-087 Events, queued listeners and queued notifications
-- **Decision:** Events `TicketCreated`, `TicketAssigned`, `ReplyAdded` (type + author), `TicketResolved`, `TicketReopened`, `SlaWarningReached`, `SlaBreached` implement `ShouldDispatchAfterCommit`. One listener per event (`App\Listeners\Notify*`, auto-discovered) implements `ShouldQueue` and `ShouldHandleEventsAfterCommit`, decides only who to notify, and sends a Notification. Recipients: TicketCreated → the customer (receipt) + admins and agents specialised in the category; TicketAssigned → the agent and the customer; ReplyAdded → staff public reply: the customer; customer reply: the assignee, or every admin while unassigned; internal note: the assignee if someone else wrote it, NEVER a customer; TicketResolved → the customer; SlaWarningReached → the assignee, or every admin while unassigned; SlaBreached → the assignee and every admin. The actor is never notified of their own action, with one deliberate exception: the customer's creation receipt. `TicketReopened` has no listener yet. `AgentRepliedNotification` refuses an internal note in its constructor as a last guard.
+- **Decision:** Events `TicketCreated`, `TicketAssigned`, `ReplyAdded` (type + author), `TicketResolved`, `TicketReopened`, `SlaWarningReached`, `SlaBreached` implement `ShouldDispatchAfterCommit`. One listener per event (`App\Modules\Notifications\Listeners\Notify*`, auto-discovered) implements `ShouldQueue` and `ShouldHandleEventsAfterCommit`, decides only who to notify, and sends a Notification. Recipients: TicketCreated → the customer (receipt) + admins and agents specialised in the category; TicketAssigned → the agent and the customer; ReplyAdded → staff public reply: the customer; customer reply: the assignee, or every admin while unassigned; internal note: the assignee if someone else wrote it, NEVER a customer; TicketResolved → the customer; SlaWarningReached → the assignee, or every admin while unassigned; SlaBreached → the assignee and every admin. The actor is never notified of their own action, with one deliberate exception: the customer's creation receipt. `TicketReopened` has no listener yet. `AgentRepliedNotification` refuses an internal note in its constructor as a last guard.
 - **Options considered:** Send mail inline in Actions; observers; events + queued listeners + queued notifications.
 - **Why this one:** Requests return fast, retries and backoff come from the queue, new channels (Slack, SMS) need no business-code changes, and after-commit dispatch prevents emails about rolled-back changes (tested).
 - **Trade-off:** Notifications arrive a moment later, and need a worker running.
@@ -708,13 +761,13 @@ Verified with `EXPLAIN` on the seeded database: the breach scan uses `tickets_st
 ## Search, dashboard and performance
 
 ### D-097 FULLTEXT + MATCH ... AGAINST in boolean mode; no search engine yet
-- **Decision:** `Ticket::scopeSearch()` runs `MATCH(subject, description) AGAINST(? IN BOOLEAN MODE)` on the FULLTEXT index. `App\Support\FullTextQuery` turns the input into `+word* +word*` (every word required, prefix-matched): it strips boolean operators (`+ - < > ( ) ~ * " @`), keeps letters with their combining marks, digits and `_`, drops words shorter than InnoDB's minimum token size (3), and caps the query at 8 words. The expression is bound, never interpolated. A query like `TKT-2026-000042` is an exact lookup on the unique `ticket_number` index. If only short words remain, or on SQLite (tests), the fallback is `subject LIKE 'term%' OR description LIKE '%term%'` with wildcards escaped.
+- **Decision:** `Ticket::scopeSearch()` runs `MATCH(subject, description) AGAINST(? IN BOOLEAN MODE)` on the FULLTEXT index. `App\Modules\Tickets\Support\FullTextQuery` turns the input into `+word* +word*` (every word required, prefix-matched): it strips boolean operators (`+ - < > ( ) ~ * " @`), keeps letters with their combining marks, digits and `_`, drops words shorter than InnoDB's minimum token size (3), and caps the query at 8 words. The expression is bound, never interpolated. A query like `TKT-2026-000042` is an exact lookup on the unique `ticket_number` index. If only short words remain, or on SQLite (tests), the fallback is `subject LIKE 'term%' OR description LIKE '%term%'` with wildcards escaped.
 - **Options considered:** `LIKE '%term%'`; FULLTEXT; Scout with Meilisearch/Elasticsearch.
 - **Why this one:** A leading wildcard cannot use any index and scans the whole table; FULLTEXT stays fast at millions of rows. A search engine adds a service to run, sync and monitor, which this scope does not justify; `TicketFilter::keyword()` is the seam where Scout could plug in later. EXPLAIN on the seeded data: `type=fulltext, key=tickets_subject_description_fulltext`.
 - **Trade-off:** Natural-language relevance ranking is not used (results follow the chosen sort); InnoDB stopwords and the 3-character minimum apply. On MySQL the keyword *results* cannot be tested inside a RefreshDatabase transaction (InnoDB FULLTEXT ignores uncommitted rows), so the MySQL test asserts the generated SQL and bindings, and SQLite tests the results.
 
 ### D-098 TicketFilter: one method per filter, visibility first
-- **Decision:** `App\Filters\TicketFilter` takes the validated `TicketIndexRequest` array and applies `visibleTo($user)` first, then keyword, scope, statuses, priorities, category and created range (business-timezone days converted to UTC bounds), plus the staff-only filters assignee (id or `unassigned`), customer (id), SLA status (`within_sla` / `approaching` / `breached`, through the shared SQL scopes) and escalated. Staff-only filters are validated for everyone but ignored for customers, so a customer who adds `?assigned_agent_id=…` still only sees their own tickets (tested), and the filter bar does not render those fields for them. `scope` defaults to `active` unless explicit statuses are chosen.
+- **Decision:** `App\Modules\Tickets\Filters\TicketFilter` takes the validated `TicketIndexRequest` array and applies `visibleTo($user)` first, then keyword, scope, statuses, priorities, category and created range (business-timezone days converted to UTC bounds), plus the staff-only filters assignee (id or `unassigned`), customer (id), SLA status (`within_sla` / `approaching` / `breached`, through the shared SQL scopes) and escalated. Staff-only filters are validated for everyone but ignored for customers, so a customer who adds `?assigned_agent_id=…` still only sees their own tickets (tested), and the filter bar does not render those fields for them. `scope` defaults to `active` unless explicit statuses are chosen.
 - **Options considered:** Query logic in the controller; a generic filter package; Eloquent scopes only.
 - **Why this one:** Small, testable methods; one place to add a filter; no way to filter around the visibility rule.
 - **Trade-off:** Combining `scope=active` with a non-active status yields an empty list (both conditions apply).
@@ -738,7 +791,7 @@ Verified with `EXPLAIN` on the seeded database: the breach scan uses `tickets_st
 - **Trade-off:** Prefix matching only (no "contains").
 
 ### D-102 Dashboard: conditional aggregation, three more queries, 30-second cache
-- **Decision:** `App\Services\Dashboard\DashboardStatsService::for($user)` returns a cacheable `DashboardStats` DTO (scalars and arrays only). Queries on a cache miss:
+- **Decision:** `App\Modules\Dashboard\Services\DashboardStatsService::for($user)` returns a cacheable `DashboardStats` DTO (scalars and arrays only). Queries on a cache miss:
   1. ONE `SELECT COALESCE(SUM(CASE WHEN … THEN 1 ELSE 0 END), 0) …` for all eight counters (total active, unassigned, critical, breached, approaching, resolved total, resolved today, escalated), with every value bound;
   2. active tickets grouped by priority;
   3. active / breached per agent, a JOIN on users (top 10);
@@ -793,7 +846,7 @@ Verified with `EXPLAIN` on the seeded database: the breach scan uses `tickets_st
 - **Trade-off:** Needs a queue worker for `imports`.
 
 ### D-105 Streaming reader without a new dependency
-- **Decision:** `App\Support\Csv\CsvReader` streams the file with `SplFileObject` (READ_CSV, SKIP_EMPTY) wrapped in generators / `LazyCollection`. It reads the header once (trimmed, lower-cased, BOM removed), counts rows in one streaming pass for the progress bar, and yields `['row' => spreadsheet row number, 'data' => assoc|null, 'raw' => list]`.
+- **Decision:** `App\Modules\Imports\Support\CsvReader` streams the file with `SplFileObject` (READ_CSV, SKIP_EMPTY) wrapped in generators / `LazyCollection`. It reads the header once (trimmed, lower-cased, BOM removed), counts rows in one streaming pass for the progress bar, and yields `['row' => spreadsheet row number, 'data' => assoc|null, 'raw' => list]`.
 - **Options considered:** `file()` / `collect()` of the whole file; Laravel Excel (maatwebsite); `league/csv`; `SplFileObject` + generators.
 - **Why this one:** Constant memory regardless of file size, measured: peak memory grows by about 9–14 MB for a 10,000-row file in the test. Laravel Excel is powerful but heavy for plain CSV; `league/csv` would also be fine, but `SplFileObject` already does what is needed with zero dependencies. Switch to Laravel Excel only if XLSX is needed.
 - **Trade-off:** The row number counts CSV records, so a record with an embedded line break counts as one row, which is what a spreadsheet shows.
@@ -839,7 +892,7 @@ Verified with `EXPLAIN` on the seeded database: the breach scan uses `tickets_st
 ### D-014 Architecture rules enforced by Pest arch tests
 - **Decision:** `tests/Unit/ArchitectureTest.php` fails the suite if controllers use the `DB` facade, Actions/Services depend on the HTTP layer, FormRequests do not extend `FormRequest`, or debug calls (`dd`, `dump`, ...) remain.
 - **Options considered:** Convention only; code review; static analysis (PHPStan rules); Pest arch tests.
-- **Why this one:** The layer rules in ARCHITECTURE.md become executable at no extra tooling cost.
+- **Why this one:** The layer rules (docs/GUIDE.md) become executable at no extra tooling cost.
 - **Trade-off:** Arch rules only check namespaces/usages, not deeper design quality.
 
 ### D-110 Test depth follows risk
@@ -912,6 +965,7 @@ Verified with `EXPLAIN` on the seeded database: the breach scan uses `tickets_st
 - **Trade-off:** These tests must never run against a database whose data matters. The test database is dedicated (`DB_TEST_DATABASE`).
 
 ### D-117 Coverage and feature tour mapped to the 17 spec sections
+- *(Superseded by D-133: TESTING.md, REVIEW_CHECKLIST.md and the README tour were removed; docs/GUIDE.md maps features to files.)*
 - **Decision:** `docs/TESTING.md` (coverage table), the README feature tour and `docs/REVIEW_CHECKLIST.md` follow the 17 numbered sections of the assessment specification, from Ticket Management through Automated Testing. A first version used sections inferred from the prompts while the spec text was not available; once it was provided, the tables were relabelled to its exact sections.
 - **Options considered:** Mapping by prompt number; one row per test folder.
 - **Why this one:** Reviewers read the spec; one row per spec section answers "where is section N, and how is it proven" directly.

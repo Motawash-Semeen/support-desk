@@ -3,9 +3,9 @@
 namespace App\Console\Commands;
 
 use App\Enums\Role;
-use App\Models\Category;
-use App\Models\Ticket;
 use App\Models\User;
+use App\Modules\Tickets\Models\Category;
+use App\Modules\Tickets\Models\Ticket;
 use Illuminate\Console\Command;
 use Illuminate\Contracts\Http\Kernel as HttpKernel;
 use Illuminate\Database\Events\QueryExecuted;

@@ -1,9 +1,9 @@
 <?php
 
-use App\Enums\ActivityType;
-use App\Models\Category;
-use App\Models\Ticket;
 use App\Models\User;
+use App\Modules\Activity\Enums\ActivityType;
+use App\Modules\Tickets\Models\Category;
+use App\Modules\Tickets\Models\Ticket;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Symfony\Component\Process\Process;

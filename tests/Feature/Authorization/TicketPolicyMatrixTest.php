@@ -1,9 +1,9 @@
 <?php
 
 use App\Enums\Role;
-use App\Enums\TicketStatus;
-use App\Models\Ticket;
 use App\Models\User;
+use App\Modules\Tickets\Enums\TicketStatus;
+use App\Modules\Tickets\Models\Ticket;
 use Illuminate\Support\Facades\Gate;
 
 /*
@@ -27,7 +27,6 @@ const MATRIX = [
         'changeCategory' => 'A - D D N',
         'assign' => 'A - D D N',
         'accept' => 'D - A D N',
-        'reassign' => 'D - D D N',
         'release' => 'D - D D N',
         'reply' => 'A - D A N',
         'addInternalNote' => 'A - D D N',
@@ -44,7 +43,6 @@ const MATRIX = [
         'changeCategory' => 'A A D D N',
         'assign' => 'A D D D N',
         'accept' => 'D A A D N',
-        'reassign' => 'A D D D N',
         'release' => 'A A D D N',
         'reply' => 'A A D A N',
         'addInternalNote' => 'A A D D N',
@@ -61,7 +59,6 @@ const MATRIX = [
         'changeCategory' => 'A A D D N',
         'assign' => 'A D D D N',
         'accept' => 'D A A D N',
-        'reassign' => 'A D D D N',
         'release' => 'A A D D N',
         'reply' => 'A A D A N',
         'addInternalNote' => 'A A D D N',
@@ -78,7 +75,6 @@ const MATRIX = [
         'changeCategory' => 'A A D D N',
         'assign' => 'D D D D N',
         'accept' => 'D D D D N',
-        'reassign' => 'D D D D N',
         'release' => 'D D D D N',
         'reply' => 'A A D A N',
         'addInternalNote' => 'A A D D N',
@@ -95,7 +91,6 @@ const MATRIX = [
         'changeCategory' => 'A A D D N',
         'assign' => 'D D D D N',
         'accept' => 'D D D D N',
-        'reassign' => 'D D D D N',
         'release' => 'D D D D N',
         'reply' => 'D D D D N',
         'addInternalNote' => 'A A D D N',

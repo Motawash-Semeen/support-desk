@@ -1,8 +1,8 @@
 <?php
 
-use App\Models\Ticket;
 use App\Models\User;
-use App\Notifications\TicketResolvedNotification;
+use App\Modules\Notifications\Notifications\TicketResolvedNotification;
+use App\Modules\Tickets\Models\Ticket;
 use Illuminate\Support\Facades\DB;
 
 beforeEach(function () {

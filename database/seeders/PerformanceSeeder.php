@@ -2,13 +2,13 @@
 
 namespace Database\Seeders;
 
-use App\Enums\ActivityType;
-use App\Enums\ReplyType;
 use App\Enums\Role;
-use App\Enums\TicketPriority;
-use App\Enums\TicketSource;
-use App\Enums\TicketStatus;
-use App\Models\Category;
+use App\Modules\Activity\Enums\ActivityType;
+use App\Modules\Conversation\Enums\ReplyType;
+use App\Modules\Tickets\Enums\TicketPriority;
+use App\Modules\Tickets\Enums\TicketSource;
+use App\Modules\Tickets\Enums\TicketStatus;
+use App\Modules\Tickets\Models\Category;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;

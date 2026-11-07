@@ -2,9 +2,9 @@
 
 namespace Database\Factories;
 
-use App\Enums\ActivityType;
-use App\Models\Ticket;
-use App\Models\TicketActivity;
+use App\Modules\Activity\Enums\ActivityType;
+use App\Modules\Activity\Models\TicketActivity;
+use App\Modules\Tickets\Models\Ticket;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -12,6 +12,8 @@ use Illuminate\Database\Eloquent\Factories\Factory;
  */
 class TicketActivityFactory extends Factory
 {
+    protected $model = TicketActivity::class;
+
     public function definition(): array
     {
         return [
