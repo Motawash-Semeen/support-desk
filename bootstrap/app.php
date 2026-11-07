@@ -2,7 +2,6 @@
 
 use App\Http\Middleware\EnsureRole;
 use App\Http\Middleware\SecurityHeaders;
-use App\Modules\Logs\Http\Middleware\TrackHttpErrors;
 use Illuminate\Database\QueryException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -27,9 +26,6 @@ return Application::configure(basePath: dirname(__DIR__))
         // CSRF, cookie encryption and session handling come from the default
         // web group (no CSRF exceptions are configured).
         $middleware->web(append: [SecurityHeaders::class]);
-
-        // Global (also runs for unmatched routes): records 4xx responses in the error log.
-        $middleware->append(TrackHttpErrors::class);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         // Extra context on every reported exception.

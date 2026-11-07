@@ -41,7 +41,7 @@ return [
     |
     */
 
-    // Under /admin next to the in-app error log (/admin/errors).
+    // Under /admin with the other admin pages. This is the app's only log UI.
     'route_path' => 'admin/log-viewer',
 
     /*

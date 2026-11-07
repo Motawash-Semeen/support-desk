@@ -41,7 +41,7 @@ class TicketIndexRequest extends FormRequest
             'created_to' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:created_from'],
             'sla_status' => ['nullable', Rule::in(TicketFilter::SLA_STATUSES)],
             'escalated' => ['nullable', 'boolean'],
-            'scope' => ['nullable', Rule::in(['active', 'closed'])],
+            'scope' => ['nullable', Rule::in(['active', 'closed', 'all'])],
             'sort' => ['nullable', Rule::in(TicketFilter::SORTS)],
             'direction' => ['nullable', Rule::in(['asc', 'desc'])],
         ];

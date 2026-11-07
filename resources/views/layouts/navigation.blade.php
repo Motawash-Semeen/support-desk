@@ -45,7 +45,7 @@
             </a>
         </div>
 
-        @if ($user->can('manage-sla-settings') || $user->can('import', App\Modules\Tickets\Models\Ticket::class) || $user->can('view-error-log'))
+        @if ($user->can('manage-sla-settings') || $user->can('import', App\Modules\Tickets\Models\Ticket::class) || $user->can('viewLogViewer'))
             <div class="space-y-1">
                 <p class="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-ink-500">{{ __('Administration') }}</p>
                 @can('manage-sla-settings')
@@ -54,11 +54,8 @@
                 @can('import', App\Modules\Tickets\Models\Ticket::class)
                     <x-nav-link :href="route('admin.imports.index')" :active="request()->routeIs('admin.imports.*')" icon="upload">{{ __('Import') }}</x-nav-link>
                 @endcan
-                @can('view-error-log')
-                    <x-nav-link :href="route('admin.errors.index')" :active="request()->routeIs('admin.errors.*')" icon="alert" :count="$openErrors">{{ __('Error log') }}</x-nav-link>
-                @endcan
                 @can('viewLogViewer')
-                    <x-nav-link :href="route('log-viewer.index')" :active="request()->routeIs('log-viewer.*')" icon="document">{{ __('Log files') }}</x-nav-link>
+                    <x-nav-link :href="route('log-viewer.index')" :active="request()->routeIs('log-viewer.*')" icon="document">{{ __('Logs') }}</x-nav-link>
                 @endcan
             </div>
         @endif

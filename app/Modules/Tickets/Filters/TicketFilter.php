@@ -65,10 +65,19 @@ final class TicketFilter
         return $query;
     }
 
-    /** active | closed | null (all). Defaults to active unless explicit statuses were chosen. */
+    /**
+     * active | closed | null (all). `scope=all` asks for everything; without a
+     * scope the list defaults to active unless explicit statuses were chosen.
+     */
     public function scopeValue(): ?string
     {
-        return $this->filters['scope'] ?? ($this->has('status') ? null : 'active');
+        $scope = $this->filters['scope'] ?? null;
+
+        if ($scope === 'all') {
+            return null;
+        }
+
+        return $scope ?? ($this->has('status') ? null : 'active');
     }
 
     /** @return array{0: string, 1: string} [sort, direction] actually applied */

@@ -6,7 +6,7 @@ order in which decisions were made, not their importance. Superseded entries are
 
 | Area | Entries |
 |---|---|
-| [Foundation and stack](#foundation-and-stack) | D-001, D-002, D-003, D-004, D-005, D-006, D-007, D-008, D-011, D-012, D-013, D-015, D-043, D-126, D-127, D-129, D-130, D-131, D-132, D-133, D-134 |
+| [Foundation and stack](#foundation-and-stack) | D-001, D-002, D-003, D-004, D-005, D-006, D-007, D-008, D-011, D-012, D-013, D-015, D-043, D-126, D-127, D-129, D-130, D-131, D-132, D-133, D-134, D-135, D-136 |
 | [Database](#database) | D-016, D-017, D-018, D-019, D-020, D-021, D-022, D-023, D-024, D-025, D-027, D-028, D-030, D-031, D-055 |
 | [Authorization and security](#authorization-and-security) | D-026, D-032, D-033, D-034, D-035, D-036, D-037, D-038, D-039, D-040, D-041, D-042, D-051, D-120, D-122, D-123, D-124, D-125 |
 | [Tickets and lifecycle](#tickets-and-lifecycle) | D-044, D-045, D-046, D-029, D-047, D-048, D-049, D-052, D-053, D-054 |
@@ -133,6 +133,7 @@ order in which decisions were made, not their importance. Superseded entries are
 - **Trade-off:** Every view was rewritten, so markup no longer matches Breeze upstream. Future Breeze updates to the auth views must be merged by hand.
 
 ### D-130 In-app error tracker fed by the logger
+- *(Superseded by D-135: removed; the log files and opcodesio/log-viewer are the only log UI.)*
 - **Decision:** Every error is stored in an `error_logs` table and shown to admins at `/admin/errors`. There are two feeds:
   - a Monolog handler (`App\Modules\Logs\Logging\ErrorTrackerHandler`, channel `tracker`), always part of the default `stack`, which stores every log entry at `ERROR_TRACKER_LEVEL` (default `error`) or above. This includes every exception Laravel reports and every explicit `Log::error()` (failed notifications, failed imports and the rest).
   - a global middleware (`TrackHttpErrors`) that stores 4xx responses, which Laravel never reports. 409 and 422 are normal outcomes, and 404s for files browsers probe on their own (`favicon.ico`, `robots.txt` and similar) are noise, so neither is stored.
@@ -165,6 +166,7 @@ order in which decisions were made, not their importance. Superseded entries are
 - **Trade-off:** L5Modular 2.1 is no longer actively maintained. Its module-factory loader calls a class removed in Laravel 8, so factories stay in `database/factories`, and an architecture test stops anyone adding `database/factories` inside a module. It works with Laravel 12 because it only uses stable APIs (`loadViewsFrom`, `loadMigrationsFrom`, route groups). If it breaks on an upgrade, replacing it means about twenty lines in a provider. Modules depend on each other directly (Tickets uses Sla and Activity), so they are ownership boundaries, not separately deployable packages. Rows written before the move keep the old class names in `notifications.type` and in queued jobs, so drain the queues before deploying this change.
 
 ### D-132 opcodesio/log-viewer next to the in-app error log
+- *(Amended by D-135: the in-app error log was removed, so the log viewer is now the only log UI. The hardening below is unchanged.)*
 - **Decision:** `opcodesio/log-viewer` 3.x serves the raw log files at `/admin/log-viewer`, with a sidebar link and a **Raw log files** button on the error log. The in-app error log (D-130) stays the primary, grouped view. Hardening:
   - **Access:** the page and its API use the same `auth`, `verified` and `role:admin` middleware as the rest of `/admin`, plus the package's own `viewLogViewer` gate (admins).
   - **Files:** only `storage/logs`. The default Apache, Nginx and Homebrew paths were removed.
@@ -200,6 +202,34 @@ order in which decisions were made, not their importance. Superseded entries are
 - **Options considered:** Keep factory/Faker data (lorem ipsum, random states written straight into columns); hand-write rows into the tables; replay the Actions.
 - **Why this one:** Requested ("real-like data"). Replaying the Actions makes the data consistent by construction: gapless numbers in creation order, business-hours deadlines, one history entry per real change, reply-driven status changes, and auto-close at the scheduler's 02:00 run. Data written straight into columns can contradict the rules (for example a reply before the ticket existed, or a breach with no escalation). `SeederTest` checks that every ticket ends in its flow's state and that nothing is dated in the future.
 - **Trade-off:** Seeding takes longer (it runs about 300 real transactions) and depends on the current time: the same seed run on another day gives different dates, though always the same states. A fixed set of 42 tickets is smaller than the old 200, so for volume testing use `PerformanceSeeder`.
+
+### D-135 opcodesio/log-viewer as the only log UI; in-app error tracker removed
+- **Decision:** The in-app error tracker (D-130) was removed: the `Logs` module (the `error_logs` table, `ErrorRecorder`, the `tracker` log channel, `TrackHttpErrors`, `/admin/errors`), the sidebar badge, the dashboard banner and the reference number on 500 pages. Errors are logged by Laravel's normal `stack` channel to `storage/logs`, and admins read them at `/admin/log-viewer`, which keeps its D-132 hardening. The custom error pages stay. The app now has eight modules.
+- **Options considered:** Keep both (D-132); keep only the in-app tracker; keep only the log viewer.
+- **Why this one:** Requested after comparing the two. One log tool is less code to maintain, and the file log already holds every error with full context.
+- **Trade-off:** Lost compared with the in-app tracker:
+  - grouping identical errors with a count, and resolving or reopening them;
+  - the open-error badge and banner;
+  - the reference number a user could quote from a 500 page;
+  - recording 4xx responses (Laravel does not log them);
+  - errors kept inside rolled-back transactions; the file log keeps these anyway.
+
+  Finding one user's error now means searching the log viewer by time or URL.
+
+### D-136 Ticket filter bar: tabs for scope, one toolbar, removable chips
+- **Decision:** The ticket list filters were redesigned (`Tickets/resources/views/partials/filter-bar.blade.php`):
+  - **Scope:** chosen only by the tabs (Active / Resolved & closed / All). Switching tabs keeps the search and the other filters but drops statuses, because each tab offers only its own statuses.
+  - **Toolbar:** one row with search, a Filters toggle showing how many filters are applied, and a labelled sort. The sort direction is a button that names the order, such as "Soonest first" or "Highest first", and applies it at once.
+  - **Applied filters:** shown as chips, each one removable, plus "Clear all", even while the panel is closed.
+  - **Panel:** a three-column panel with chip toggles for status, priority and SLA, and a date range that no longer overflows.
+  - **Short URLs:** empty fields are left out on submit, so shared URLs stay short.
+
+  Two defects were fixed along the way:
+  - `scope=all` now really lists everything; before, an empty scope fell back to Active.
+  - Tailwind now scans module views and enums (`app/Modules/**`); since the move to modules, classes used only there could be missing from a fresh CSS build.
+- **Options considered:** Keep the old bar with small fixes; a sidebar of filters; auto-apply on every change.
+- **Why this one:** Requested ("filter system design is not good"). The old bar had two scope controls that could contradict each other, two unlabelled sort selects, statuses that made no sense for the tab, and no view of what was applied while the panel was closed. Multi-select chips still need an explicit Apply, so the panel keeps an Apply button, while single choices (sort, direction, tabs, chip removal) apply immediately.
+- **Trade-off:** A small Alpine snippet disables empty fields on submit. Without JavaScript, the form still works but sends the empty fields.
 
 ## Database
 

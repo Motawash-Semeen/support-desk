@@ -12,7 +12,6 @@ parameters:
         - app/Modules/Assignment/database/migrations
         - app/Modules/Conversation/database/migrations
         - app/Modules/Imports/database/migrations
-        - app/Modules/Logs/database/migrations
         - app/Modules/Notifications/database/migrations
         - app/Modules/Sla/database/migrations
         - app/Modules/Tickets/database/migrations

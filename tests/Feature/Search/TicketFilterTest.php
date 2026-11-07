@@ -129,7 +129,21 @@ it('filters escalated tickets and splits active from closed', function () {
 
     expect(filtered($this->admin, ['escalated' => '1']))->toBe(ids($escalated))
         ->and(filtered($this->admin, []))->toBe(ids($escalated, $active)) // default: active
-        ->and(filtered($this->admin, ['scope' => 'closed']))->toBe(ids($closed));
+        ->and(filtered($this->admin, ['scope' => 'closed']))->toBe(ids($closed))
+        ->and(filtered($this->admin, ['scope' => 'all']))->toBe(ids($escalated, $active, $closed));
+});
+
+it('renders the filter bar with applied filters as removable chips and scope-specific statuses', function () {
+    $response = $this->actingAs($this->admin)
+        ->get(route('tickets.index', ['scope' => 'active', 'priority' => ['high'], 'status' => ['in_progress']]))
+        ->assertOk()
+        ->assertSee('Applied:')
+        ->assertSee(route('tickets.index', ['scope' => 'active', 'status' => ['in_progress']])) // remove "High"
+        ->assertSee('Soonest first');
+
+    // The Active tab offers only active statuses; the All tab keeps search and filters.
+    expect($response->getContent())->not->toContain('value="closed"')
+        ->toContain(e(route('tickets.index', ['priority' => ['high'], 'scope' => 'all'])));
 });
 
 it('combines filters', function () {

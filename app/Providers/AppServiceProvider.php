@@ -6,7 +6,6 @@ use App\Models\User;
 use App\Modules\Assignment\Services\AssignmentStrategy;
 use App\Modules\Conversation\Models\Attachment;
 use App\Modules\Conversation\Policies\AttachmentPolicy;
-use App\Modules\Logs\Models\ErrorLog;
 use App\Modules\Sla\Services\BusinessHoursSlaCalculator;
 use App\Modules\Sla\Services\SlaCalculator;
 use App\Modules\Sla\Services\SlaPolicyRepository;
@@ -119,7 +118,6 @@ class AppServiceProvider extends ServiceProvider
     {
         Gate::define('view-dashboard', fn (User $user): bool => $user->isStaff());
         Gate::define('manage-sla-settings', fn (User $user): bool => $user->isAdmin());
-        Gate::define('view-error-log', fn (User $user): bool => $user->isAdmin());
         // opcodesio/log-viewer's own gate (raw files in storage/logs); the route
         // middleware in config/log-viewer.php already requires role:admin.
         Gate::define('viewLogViewer', fn (?User $user): bool => (bool) $user?->isAdmin());
@@ -144,13 +142,6 @@ class AppServiceProvider extends ServiceProvider
             }
 
             $view->with('unreadNotifications', (int) $request->attributes->get('unread_notifications', 0));
-
-            // Open-error badge for admins only (one indexed COUNT, memoised the same way).
-            if ($user !== null && $user->isAdmin() && ! $request->attributes->has('open_errors')) {
-                $request->attributes->set('open_errors', ErrorLog::query()->open()->count());
-            }
-
-            $view->with('openErrors', (int) $request->attributes->get('open_errors', 0));
         });
     }
 

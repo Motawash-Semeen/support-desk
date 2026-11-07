@@ -95,7 +95,6 @@ app/Modules/Tickets/
 | **Notifications** | emails and bell notifications for ticket events | `Listeners/Notify*.php` (who gets notified), `Notifications/*.php` (what they get), `Http/Controllers/NotificationController.php` |
 | **Dashboard** | the staff dashboard numbers | `Services/DashboardStatsService.php` |
 | **Imports** | CSV import of tickets (queued, resumable) | `Actions/RunTicketImport.php`, `Actions/ImportTicketRows.php`, `Support/CsvReader.php` |
-| **Logs** | in-app error log for admins (`/admin/errors`) and the raw log-file viewer (`/admin/log-viewer`) | `Services/ErrorRecorder.php`, `Logging/ErrorTrackerHandler.php`, `Http/Middleware/TrackHttpErrors.php`, `config/log-viewer.php` |
 
 Modules use each other directly. For example, `CreateTicket` calls the Sla calculator and the Activity recorder.
 
@@ -143,9 +142,9 @@ timeline on the ticket page is `<x-Activity::ticket-timeline>`. Customers do not
 decides who to notify, and the notification sends mail (on the `notifications` queue) and a bell entry. The person
 who did the action is not notified. Internal notes never reach customers.
 
-**Error log** (`Logs/`): every log entry at error level or above, and every 4xx response except 409 and 422, is
-stored in `error_logs`. Identical errors are grouped. Admins see them at `/admin/errors`, and server-error pages
-show a reference number that matches the entry.
+**Logs**: everything the app logs goes to `storage/logs/laravel.log`. Admins read, search and download the log
+files at `/admin/log-viewer` (package opcodesio/log-viewer, settings in `config/log-viewer.php`). Visitors never
+see internals: errors render the custom pages in `resources/views/errors`.
 
 ## 5. "I want to change …"
 
@@ -196,7 +195,7 @@ vendor/bin/phpstan analyse                 # static analysis (Larastan level 5)
 ```
 
 `tests/Feature/<Area>` matches the feature: Tickets, Assignment, Conversation, Sla, Notifications, Search,
-Dashboard, Import, Activity, ErrorTracking, Authorization, Security, Database. `tests/Unit` holds pure logic
+Dashboard, Import, Activity, Logs, Authorization, Security, Database. `tests/Unit` holds pure logic
 (calendar maths, enums, CSV reader) and `ArchitectureTest.php` (the layer rules above, checked automatically).
 Time is frozen at Mon 2026-11-09 10:00 Asia/Dhaka in every test (`tests/TestCase.php`). Mail, storage and HTTP are
 faked. CI (`.github/workflows/tests.yml`) runs everything on MySQL 8 on every push.
@@ -207,5 +206,5 @@ faked. CI (`.github/workflows/tests.yml`) runs everything on MySQL 8 on every pu
 - One business timezone and one calendar for everyone; resolution SLA only (no first-response SLA).
 - Keyword search covers subject and description, not replies.
 - No user-management screen: staff accounts come from the seeder.
-- The error log does not email or page anyone; admins check `/admin/errors`.
+- Nobody is emailed or paged about errors; admins check the logs at `/admin/log-viewer`.
 - Uploads are type-checked but not virus-scanned.

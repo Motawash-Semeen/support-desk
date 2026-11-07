@@ -79,8 +79,7 @@ vendor/bin/phpstan analyse
 |---|---|
 | SLA targets, business hours, holidays | `/admin/sla-settings` |
 | CSV ticket import (sample file at `/admin/imports/sample`) | `/admin/imports` |
-| Error log (grouped errors, resolve/reopen) | `/admin/errors` |
-| Raw log files | `/admin/log-viewer` |
+| Logs (application log files, opcodesio/log-viewer) | `/admin/log-viewer` |
 
 Business settings (timezone, SLA defaults, attachment limits, assignment strategy, import size) are in
 `config/support.php`, and each can be overridden with a `SUPPORT_*` value in `.env`.

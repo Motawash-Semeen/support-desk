@@ -4,7 +4,7 @@ use App\Models\User;
 
 /*
 | opcodesio/log-viewer at /admin/log-viewer: raw files in storage/logs,
-| next to the in-app error log. Admins only, and it must work under our CSP.
+| the app's only log UI. Admins only, and it must work under our CSP.
 */
 
 test('guests are sent to the login page', function () {

@@ -1,7 +1,7 @@
 @use('App\Support\BusinessTime')
 
 @php
-    $isFiltered = collect($filters)->except(['sort', 'direction'])->filter(fn ($v) => $v !== null && $v !== '' && $v !== [])->isNotEmpty();
+    $isFiltered = collect($filters)->except(['sort', 'direction', 'scope'])->filter(fn ($v) => $v !== null && $v !== '' && $v !== [])->isNotEmpty();
 @endphp
 
 <x-app-layout :title="auth()->user()->isStaff() ? __('All tickets') : __('My tickets')"
@@ -14,26 +14,13 @@
         @endcan
     </x-slot>
 
-    {{-- Scope tabs --}}
-    <nav class="mb-4 flex gap-1 rounded-xl bg-ink-100 p-1 text-sm sm:inline-flex" aria-label="{{ __('Ticket scope') }}">
-        @foreach (['active' => __('Active'), 'closed' => __('Resolved / Closed')] as $key => $label)
-            <a href="{{ route('tickets.index', ['scope' => $key]) }}"
-               @class([
-                   'flex-1 rounded-lg px-4 py-1.5 text-center font-medium transition sm:flex-none',
-                   'bg-white text-ink-900 shadow-sm' => $scope === $key,
-                   'text-ink-500 hover:text-ink-800' => $scope !== $key,
-               ])
-               @if ($scope === $key) aria-current="page" @endif>{{ $label }}</a>
-        @endforeach
-    </nav>
-
     @include('Tickets::partials.filter-bar')
 
     <div class="card overflow-hidden">
         @if ($tickets->isEmpty())
             @if ($isFiltered)
                 <x-empty-state icon="funnel" :title="__('No tickets match these filters.')" :description="__('Try a broader search, or clear the filters to see everything.')">
-                    <a href="{{ route('tickets.index') }}" class="btn btn-secondary">{{ __('Clear filters') }}</a>
+                    <a href="{{ route('tickets.index', ['scope' => $scope ?? 'all']) }}" class="btn btn-secondary">{{ __('Clear filters') }}</a>
                 </x-empty-state>
             @else
                 <x-empty-state icon="ticket" :title="__('No tickets yet.')" :description="__('When a ticket is opened it shows up here, with its deadline and owner.')">

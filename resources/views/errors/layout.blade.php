@@ -21,14 +21,6 @@
                 <h1 class="mt-2 text-3xl font-semibold tracking-tight text-ink-900">@yield('title')</h1>
                 <p class="mt-3 text-base text-ink-500">@yield('message')</p>
 
-                {{-- Server errors: the error-log entry the admin can look up. --}}
-                @php($reference = str_starts_with(trim($__env->yieldContent('code')), '5') ? \App\Modules\Logs\Services\ErrorRecorder::lastRecordedId() : null)
-                @if ($reference)
-                    <p class="mt-4 text-sm text-ink-500">
-                        {{ __('Reference') }} <span class="ticket-no">#{{ $reference }}</span> · {{ __('quote it if you contact support.') }}
-                    </p>
-                @endif
-
                 <div class="mt-8 flex flex-wrap justify-center gap-3">
                     <a href="{{ url()->previous() !== url()->current() ? url()->previous() : url('/') }}" class="btn btn-secondary">
                         <x-icon name="arrow-left" class="h-4 w-4" /> {{ __('Go back') }}

@@ -1,7 +1,6 @@
 <?php
 
 use App\Models\Notification;
-use App\Modules\Logs\Models\ErrorLog;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
 
@@ -49,9 +48,8 @@ Schedule::command('attachments:purge-orphans')
     ->withoutOverlapping(10)
     ->onOneServer();
 
-// Read in-app notifications older than 90 days (App\Models\Notification::prunable)
-// and old error-log entries (App\Modules\Logs\Models\ErrorLog::prunable).
-Schedule::command('model:prune', ['--model' => [Notification::class, ErrorLog::class]])
+// Read in-app notifications older than 90 days (App\Models\Notification::prunable).
+Schedule::command('model:prune', ['--model' => [Notification::class]])
     ->dailyAt('04:00')
     ->withoutOverlapping(10)
     ->onOneServer();

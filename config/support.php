@@ -131,19 +131,6 @@ return [
     | Volumes for database/seeders/PerformanceSeeder (EXPLAIN measurements only;
     | never part of the normal seed). See docs/PERFORMANCE.md.
     */
-    /*
-    | Error tracker (admin page /admin/errors). Every log entry at or above
-    | `level` (which includes every reported exception) and every 4xx response
-    | is stored, grouped by fingerprint. `isolated` writes through a separate
-    | connection so errors inside rolled-back transactions are kept.
-    */
-    'error_tracker' => [
-        'enabled' => (bool) env('ERROR_TRACKER_ENABLED', true),
-        'isolated' => (bool) env('ERROR_TRACKER_ISOLATED', true),
-        'track_http' => (bool) env('ERROR_TRACKER_TRACK_HTTP', true),
-        'retention_days' => (int) env('ERROR_TRACKER_RETENTION_DAYS', 30),
-    ],
-
     'performance' => [
         'tickets' => (int) env('PERF_TICKETS', 100000),
         'replies' => (int) env('PERF_REPLIES', 300000),

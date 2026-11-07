@@ -8,6 +8,9 @@ export default {
         './storage/framework/views/*.php',
         './resources/views/**/*.blade.php',
         './app/Enums/**/*.php',
+        // L5Modular modules keep their own views and enums (colour names).
+        './app/Modules/**/*.blade.php',
+        './app/Modules/*/Enums/*.php',
     ],
 
     theme: {
