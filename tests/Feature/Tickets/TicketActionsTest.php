@@ -175,7 +175,7 @@ it('resolves: sets resolved_at, records activity and dispatches TicketResolved',
 
     expect($resolved->status)->toBe(TicketStatus::Resolved)
         ->and($resolved->resolved_at)->not->toBeNull()
-        ->and($resolved->activities()->sole()->new_values)->toBe(['status' => 'resolved', 'reason' => 'Password reset sent']);
+        ->and($resolved->activities()->sole()->new_values)->toBeJsonObject(['status' => 'resolved', 'reason' => 'Password reset sent']);
 
     Event::assertDispatched(TicketResolved::class);
     Event::assertDispatched(TicketStatusChanged::class, fn ($e) => $e->from === TicketStatus::InProgress && $e->to === TicketStatus::Resolved);

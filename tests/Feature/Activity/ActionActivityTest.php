@@ -61,7 +61,7 @@ it('CreateTicket writes one ticket_created entry', function () {
     expect($log->pluck('type')->all())->toBe([ActivityType::TicketCreated])
         ->and($log[0]->actor_id)->toBe($this->customer->id)
         ->and($log[0]->old_values)->toBeNull()
-        ->and($log[0]->new_values)->toBe(['status' => 'open', 'priority' => 'high', 'category_id' => $category->id]);
+        ->and($log[0]->new_values)->toBeJsonObject(['status' => 'open', 'priority' => 'high', 'category_id' => $category->id]);
 });
 
 it('UpdateTicket writes one entry per edited field', function (array $input, ActivityType $type, string $field) {
@@ -106,7 +106,7 @@ it('status changes write one status_changed entry', function () {
 
     $log = activitiesDuring(fn () => app(ResolveTicket::class)($this->agent, $this->ticket, 'Fixed'));
     expect($log->pluck('type')->all())->toBe([ActivityType::StatusChanged])
-        ->and($log[0]->new_values)->toBe(['status' => 'resolved', 'reason' => 'Fixed']);
+        ->and($log[0]->new_values)->toBeJsonObject(['status' => 'resolved', 'reason' => 'Fixed']);
 });
 
 it('a reopen logs reopened and the fresh SLA', function () {
@@ -126,8 +126,8 @@ it('assignment actions write one entry each with old and new agent', function ()
     $claim = activitiesDuring(fn () => app(ClaimTicket::class)($open, $this->agent, $this->agent));
     expect($claim->pluck('type')->all())->toBe([ActivityType::Assigned])
         ->and($claim[0]->description)->toBe('Accepted by Agent B')
-        ->and($claim[0]->old_values)->toBe(['assigned_agent_id' => null, 'status' => 'open'])
-        ->and($claim[0]->new_values)->toBe(['assigned_agent_id' => $this->agent->id, 'status' => 'in_progress']);
+        ->and($claim[0]->old_values)->toBeJsonObject(['assigned_agent_id' => null, 'status' => 'open'])
+        ->and($claim[0]->new_values)->toBeJsonObject(['assigned_agent_id' => $this->agent->id, 'status' => 'in_progress']);
 
     $reassign = activitiesDuring(fn () => app(AssignTicket::class)($this->admin, $open, $other, $this->agent->id));
     expect($reassign->pluck('type')->all())->toBe([ActivityType::Reassigned])
@@ -137,7 +137,7 @@ it('assignment actions write one entry each with old and new agent', function ()
 
     $release = activitiesDuring(fn () => app(ReleaseTicket::class)($other, $open->fresh()));
     expect($release->pluck('type')->all())->toBe([ActivityType::Released])
-        ->and($release[0]->new_values)->toBe(['assigned_agent_id' => null, 'status' => 'open']);
+        ->and($release[0]->new_values)->toBeJsonObject(['assigned_agent_id' => null, 'status' => 'open']);
 });
 
 it('an admin assignment reads "Assigned to X by Y"', function () {
