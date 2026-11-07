@@ -76,7 +76,7 @@ test('logged errors are stored with secrets redacted; info and debug are not', f
 
     expect($error->source)->toBe('log')
         ->and($error->message)->toBe('Mail transport failed')
-        ->and($error->context)->toBe(['password' => '[redacted]', 'api_key' => '[redacted]', 'ticket_id' => 42, 'nested' => ['token' => '[redacted]', 'ok' => true]]);
+        ->and($error->context)->toBeJsonObject(['password' => '[redacted]', 'api_key' => '[redacted]', 'ticket_id' => 42, 'nested' => ['token' => '[redacted]', 'ok' => true]]);
 });
 
 test('the request, user and IP of the latest occurrence are recorded', function () {

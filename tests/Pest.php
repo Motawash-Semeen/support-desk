@@ -37,10 +37,15 @@ expect()->extend('toBeJsonObject', function (array $expected) {
     $actual = $this->value;
 
     expect($actual)->toBeArray();
-    ksort($actual);
-    ksort($expected);
 
-    expect($actual)->toBe($expected);
+    // Nested objects are reordered too, so sort keys at every level.
+    $sort = function (array $value) use (&$sort): array {
+        ksort($value);
+
+        return array_map(fn ($item) => is_array($item) ? $sort($item) : $item, $value);
+    };
+
+    expect($sort($actual))->toBe($sort($expected));
 
     return $this;
 });
