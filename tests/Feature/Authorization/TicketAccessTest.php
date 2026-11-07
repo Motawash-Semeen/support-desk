@@ -1,5 +1,6 @@
 <?php
 
+use App\Enums\ActivityType;
 use App\Models\Ticket;
 use App\Models\TicketActivity;
 use App\Models\TicketReply;
@@ -36,7 +37,7 @@ it('shows a ticket to its owner, any agent and admins', function (string $who) {
 it('hides internal notes and the activity log from the customer', function () {
     TicketReply::factory()->for($this->ticket)->create(['user_id' => $this->owner->id, 'body' => 'Customer public reply']);
     TicketReply::factory()->for($this->ticket)->internalNote()->create(['user_id' => $this->agent->id, 'body' => 'Secret staff note']);
-    TicketActivity::factory()->for($this->ticket)->create(['description' => 'Escalated to tier two']);
+    TicketActivity::factory()->for($this->ticket)->create(['type' => ActivityType::Escalated, 'description' => 'Escalated to tier two']);
 
     $this->actingAs($this->owner)
         ->get(route('tickets.show', $this->ticket))

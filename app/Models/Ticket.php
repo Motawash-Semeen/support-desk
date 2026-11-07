@@ -2,10 +2,15 @@
 
 namespace App\Models;
 
+use App\Enums\ActivityType;
 use App\Enums\ReplyType;
+use App\Enums\SlaStatus;
 use App\Enums\TicketPriority;
 use App\Enums\TicketSource;
 use App\Enums\TicketStatus;
+use App\Services\Sla\SlaStatusResolver;
+use App\Support\FullTextQuery;
+use Carbon\CarbonInterface;
 use Database\Factories\TicketFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -35,6 +40,8 @@ class Ticket extends Model
         'assigned_agent_id',
         'due_at',
         'sla_warning_at',
+        'resolved_at',
+        'closed_at',
         'is_escalated',
         'created_at',
         'updated_at',
@@ -158,6 +165,32 @@ class Ticket extends Model
         return $this->hasMany(TicketReply::class)->where('type', ReplyType::Public);
     }
 
+    /**
+     * The conversation a given user may see: everything for staff, public
+     * replies only for customers. Decided by TicketPolicy::viewInternalNotes,
+     * the single gate for internal-note visibility.
+     *
+     * @return HasMany<TicketReply, $this>
+     */
+    public function repliesVisibleTo(User $user): HasMany
+    {
+        return $user->can('viewInternalNotes', $this) ? $this->replies() : $this->publicReplies();
+    }
+
+    /**
+     * Timeline entries a given user may see. Customers get only types that
+     * ActivityType::isCustomerVisible() allows (no notes, assignment, SLA
+     * internals or escalation). Served by ticket_activities_ticket_id_created_at_index.
+     *
+     * @return HasMany<TicketActivity, $this>
+     */
+    public function activitiesVisibleTo(User $user): HasMany
+    {
+        return $user->can('viewInternalNotes', $this)
+            ? $this->activities()
+            : $this->activities()->whereIn('type', ActivityType::customerVisibleValues());
+    }
+
     /** @return HasMany<TicketReply, $this> */
     public function internalNotes(): HasMany
     {
@@ -213,21 +246,28 @@ class Ticket extends Model
         }
     }
 
+    /** Any SLA status, with the same rules as slaStatus() (SlaStatusResolver). */
+    public function scopeSlaStatus(Builder $query, SlaStatus $status): void
+    {
+        SlaStatusResolver::applyScope($query, $status, now());
+    }
+
     /** Active and past due. Served by tickets_status_due_at_index. */
     public function scopeSlaBreached(Builder $query): void
     {
-        $query->active()
-            ->whereNotNull('due_at')
-            ->where('due_at', '<', now());
+        SlaStatusResolver::applyScope($query, SlaStatus::Breached, now());
     }
 
     /** Active, past the warning point, not yet due. Served by tickets_status_sla_warning_at_index. */
     public function scopeSlaApproaching(Builder $query): void
     {
-        $query->active()
-            ->whereNotNull('sla_warning_at')
-            ->where('sla_warning_at', '<=', now())
-            ->where('due_at', '>=', now());
+        SlaStatusResolver::applyScope($query, SlaStatus::Approaching, now());
+    }
+
+    /** Active and before the warning point. */
+    public function scopeWithinSla(Builder $query): void
+    {
+        SlaStatusResolver::applyScope($query, SlaStatus::WithinSla, now());
     }
 
     /** Relations every list row renders, with only the columns it shows. */
@@ -247,8 +287,12 @@ class Ticket extends Model
     }
 
     /**
-     * Keyword search on subject + description. Uses the FULLTEXT index on
-     * MySQL/MariaDB; falls back to LIKE on other drivers (SQLite tests).
+     * Keyword search on subject + description.
+     *  - MySQL/MariaDB: MATCH(subject, description) AGAINST(? IN BOOLEAN MODE) on
+     *    the FULLTEXT index, with every word required and prefix-matched; input is
+     *    sanitised (FullTextQuery) and bound, never interpolated.
+     *  - Only very short words (below the FULLTEXT minimum) or another driver
+     *    (SQLite tests): subject LIKE 'term%' OR description LIKE '%term%', escaped.
      */
     public function scopeSearch(Builder $query, ?string $term): void
     {
@@ -258,17 +302,20 @@ class Ticket extends Model
             return;
         }
 
-        if (in_array($query->getConnection()->getDriverName(), ['mysql', 'mariadb'], true)) {
-            $query->whereFullText(['subject', 'description'], $term);
+        $boolean = FullTextQuery::boolean($term);
+
+        if ($boolean !== null && in_array($query->getModel()->getConnection()->getDriverName(), ['mysql', 'mariadb'], true)) {
+            $query->whereFullText(['subject', 'description'], $boolean, ['mode' => 'boolean']);
 
             return;
         }
 
-        $like = '%'.str_replace(['\\', '%', '_'], ['\\\\', '\\%', '\\_'], $term).'%';
+        $words = FullTextQuery::words($term);
+        $literal = FullTextQuery::escapeLike($words === [] ? $term : implode(' ', $words));
 
         $query->where(fn (Builder $q) => $q
-            ->where('subject', 'like', $like)
-            ->orWhere('description', 'like', $like));
+            ->where('subject', 'like', $literal.'%')
+            ->orWhere('description', 'like', '%'.$literal.'%'));
     }
 
     /* ------------------------------------------------------------------ */
@@ -282,23 +329,21 @@ class Ticket extends Model
 
     public function isSlaBreached(): bool
     {
-        return $this->isActive() && $this->due_at !== null && $this->due_at->isPast();
+        return $this->slaStatus() === SlaStatus::Breached;
     }
 
     /**
-     * 'breached' | 'at_risk' | 'on_track' for active tickets, null otherwise.
-     * Same rules as scopeSlaBreached() / scopeSlaApproaching().
+     * SLA standing from stored columns only (comparisons, no maths). Same rules
+     * as the SQL scopes; see SlaStatusResolver.
      */
-    public function slaState(): ?string
+    public function slaStatus(?CarbonInterface $now = null): ?SlaStatus
     {
-        if (! $this->isActive() || $this->due_at === null) {
-            return null;
-        }
-
-        if ($this->due_at->isPast()) {
-            return 'breached';
-        }
-
-        return $this->sla_warning_at !== null && $this->sla_warning_at->lte(now()) ? 'at_risk' : 'on_track';
+        return SlaStatusResolver::resolve(
+            $this->due_at,
+            $this->sla_warning_at,
+            $this->resolved_at ?? $this->closed_at,
+            $this->isActive(),
+            $now ?? now(),
+        );
     }
 }

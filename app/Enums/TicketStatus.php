@@ -40,25 +40,47 @@ enum TicketStatus: string
     }
 
     /**
-     * Statuses this status may move to. Resolved and closed tickets can be
-     * reopened (back to Open); everything else moves forward.
+     * The single source of truth for status changes. Reopening a resolved
+     * ticket goes back to In progress; Closed is terminal except for the
+     * admin-only reopen in adminOnlyTransitions().
      *
      * @return list<self>
      */
     public function allowedTransitions(): array
     {
         return match ($this) {
-            self::Open => [self::InProgress, self::WaitingForCustomer, self::Resolved, self::Closed],
-            self::InProgress => [self::WaitingForCustomer, self::Resolved, self::Closed],
-            self::WaitingForCustomer => [self::InProgress, self::Resolved, self::Closed],
-            self::Resolved => [self::Closed, self::Open],
-            self::Closed => [self::Open],
+            self::Open => [self::InProgress, self::WaitingForCustomer, self::Resolved],
+            self::InProgress => [self::WaitingForCustomer, self::Resolved, self::Open],
+            // -> open: the customer replied to an unassigned ticket (back to the queue).
+            self::WaitingForCustomer => [self::InProgress, self::Resolved, self::Closed, self::Open],
+            self::Resolved => [self::Closed, self::InProgress],
+            self::Closed => [],
         };
     }
 
-    public function canTransitionTo(self $next): bool
+    /**
+     * Extra transitions only an administrator may perform.
+     *
+     * @return list<self>
+     */
+    public function adminOnlyTransitions(): array
     {
-        return in_array($next, $this->allowedTransitions(), true);
+        return match ($this) {
+            self::Closed => [self::InProgress],
+            default => [],
+        };
+    }
+
+    public function canTransitionTo(self $next, bool $byAdmin = false): bool
+    {
+        return in_array($next, $this->allowedTransitions(), true)
+            || ($byAdmin && in_array($next, $this->adminOnlyTransitions(), true));
+    }
+
+    /** Status a reopened ticket returns to. */
+    public static function reopenTarget(): self
+    {
+        return self::InProgress;
     }
 
     /** @return list<self> */

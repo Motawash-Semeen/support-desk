@@ -3,12 +3,15 @@
 namespace App\Models;
 
 use App\Enums\TicketPriority;
+use App\Observers\SlaRulesObserver;
 use Database\Factories\SlaPolicyFactory;
+use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
+#[ObservedBy(SlaRulesObserver::class)]
 class SlaPolicy extends Model
 {
     /** @use HasFactory<SlaPolicyFactory> */

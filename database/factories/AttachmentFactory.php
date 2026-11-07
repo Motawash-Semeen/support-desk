@@ -24,7 +24,8 @@ class AttachmentFactory extends Factory
             'ticket_reply_id' => null,
             'uploaded_by' => User::factory(),
             'original_name' => fake()->slug(3).'.'.$extension,
-            'stored_name' => Str::uuid()->toString().'.'.$extension,
+            // Same layout StoreAttachments writes: tickets/{ticket_id}/{Y}/{m}/{uuid}.{ext}
+            'stored_name' => fn (array $a) => sprintf('tickets/%d/%s/%s.%s', $a['ticket_id'], now()->format('Y/m'), Str::uuid(), $extension),
             'mime_type' => match ($extension) {
                 'pdf' => 'application/pdf',
                 'png' => 'image/png',

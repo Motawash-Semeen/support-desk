@@ -16,3 +16,7 @@ use Tests\TestCase;
 pest()->extend(TestCase::class)
     ->use(RefreshDatabase::class)
     ->in('Feature');
+
+// Multi-process races need committed rows: no RefreshDatabase; tests clean up.
+pest()->extend(TestCase::class)
+    ->in('Concurrency');

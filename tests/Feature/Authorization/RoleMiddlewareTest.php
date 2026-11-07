@@ -36,7 +36,7 @@ it('fails loudly on an unknown role in a route definition', function () {
 it('puts every application route behind auth and the right role middleware', function () {
     $routes = collect(Route::getRoutes()->getRoutes())->keyBy(fn ($route) => $route->getName());
 
-    foreach (['dashboard', 'tickets.index', 'tickets.show', 'tickets.attachments.download'] as $name) {
+    foreach (['dashboard', 'tickets.index', 'tickets.show', 'attachments.download'] as $name) {
         expect($routes[$name]->gatherMiddleware())->toContain('auth');
     }
 

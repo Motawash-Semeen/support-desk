@@ -17,7 +17,7 @@ class TicketActivityFactory extends Factory
         return [
             'ticket_id' => Ticket::factory(),
             'actor_id' => null,
-            'type' => ActivityType::Created,
+            'type' => ActivityType::TicketCreated,
             'description' => 'Ticket created',
             'old_values' => null,
             'new_values' => null,

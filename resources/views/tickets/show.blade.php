@@ -10,6 +10,9 @@
             <x-badge :color="$ticket->status->color()">{{ $ticket->status->label() }}</x-badge>
             <x-badge :color="$ticket->priority->color()">{{ $ticket->priority->label() }}</x-badge>
             <x-sla-badge :ticket="$ticket" />
+            @can('update', $ticket)
+                <a href="{{ route('tickets.edit', $ticket) }}" class="ms-auto text-sm text-indigo-600 hover:underline">{{ __('Edit') }}</a>
+            @endcan
         </div>
     </x-slot>
 
@@ -31,7 +34,7 @@
                     <h3 class="font-semibold text-gray-800">{{ __('Conversation') }}</h3>
 
                     @forelse ($replies as $reply)
-                        <article @class([
+                        <article id="reply-{{ $reply->id }}" @class([
                             'shadow-sm sm:rounded-lg p-5',
                             'bg-amber-50 border border-amber-200' => $reply->isInternal(),
                             'bg-white' => ! $reply->isInternal(),
@@ -53,10 +56,15 @@
                     @empty
                         <p class="text-sm text-gray-500">{{ __('No replies yet.') }}</p>
                     @endforelse
+
+                    @include('tickets.partials.reply-form', ['ticket' => $ticket])
                 </section>
             </div>
 
             <aside class="space-y-6">
+                @include('tickets.partials.assignment', ['ticket' => $ticket, 'agents' => $agents])
+                @include('tickets.partials.status-actions', ['ticket' => $ticket])
+
                 <section class="bg-white shadow-sm sm:rounded-lg p-6">
                     <dl class="grid grid-cols-3 gap-y-3 text-sm">
                         <dt class="text-gray-500">{{ __('Category') }}</dt>
@@ -76,23 +84,7 @@
                     </dl>
                 </section>
 
-                @can('viewInternalNotes', $ticket)
-                    <section class="bg-white shadow-sm sm:rounded-lg p-6">
-                        <h3 class="font-semibold text-gray-800 mb-3">{{ __('Activity') }}</h3>
-                        <ol class="space-y-3 text-sm">
-                            @forelse ($activities as $activity)
-                                <li>
-                                    <div class="text-gray-800">{{ $activity->description }}</div>
-                                    <div class="text-gray-500">
-                                        {{ $activity->actor?->name ?? __('System') }} · {{ BusinessTime::format($activity->created_at) }}
-                                    </div>
-                                </li>
-                            @empty
-                                <li class="text-gray-500">{{ __('No activity recorded.') }}</li>
-                            @endforelse
-                        </ol>
-                    </section>
-                @endcan
+                <x-ticket-timeline :ticket="$ticket" :activities="$activities" :direction="$timelineDirection" />
             </aside>
         </div>
     </div>

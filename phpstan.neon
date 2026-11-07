@@ -1,0 +1,13 @@
+includes:
+    - vendor/larastan/larastan/extension.neon
+
+parameters:
+    level: 5
+    # Models declare casts in a casts() method (Laravel 11+); read it.
+    parseModelCastsMethod: true
+    paths:
+        - app
+        - config
+        - database
+        - routes
+    tmpDir: storage/framework/cache/phpstan

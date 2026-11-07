@@ -2,7 +2,9 @@
 
 namespace App\Models;
 
+use App\Observers\SlaRulesObserver;
 use Database\Factories\BusinessHourFactory;
+use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -10,6 +12,7 @@ use Illuminate\Database\Eloquent\Model;
  * Weekly working schedule. Times are wall-clock times in
  * config('support.timezone'); weekday uses Carbon numbering (0 = Sunday).
  */
+#[ObservedBy(SlaRulesObserver::class)]
 class BusinessHour extends Model
 {
     /** @use HasFactory<BusinessHourFactory> */

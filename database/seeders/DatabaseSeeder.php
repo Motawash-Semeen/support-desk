@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Services\Sla\SlaPolicyRepository;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
 
@@ -19,6 +20,9 @@ class DatabaseSeeder extends Seeder
             SlaPolicySeeder::class,
             BusinessHourSeeder::class,
         ]);
+
+        // Model events are muted while seeding, so the rule cache is flushed explicitly.
+        app(SlaPolicyRepository::class)->flush();
 
         if (! app()->isProduction()) {
             $this->call([

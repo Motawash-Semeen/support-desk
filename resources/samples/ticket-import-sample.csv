@@ -1,0 +1,6 @@
+external_reference,customer_email,subject,description,priority,category,status,assigned_agent_email,created_at
+LEGACY-1001,jane.doe@example.com,Cannot download invoice,"The invoice PDF for October fails to download, the page shows an error.",high,Billing,open,,2026-10-28T09:15:00+06:00
+LEGACY-1002,jane.doe@example.com,Change billing address,Please update my billing address to the new office.,low,billing,resolved,agent1@example.com,2026-10-20T14:00:00+06:00
+LEGACY-1003,omar.k@example.com,VPN disconnects every hour,"Since Monday the VPN drops every 60 minutes; logs attached in the old system.",critical,Technical Support,in_progress,agent2@example.com,2026-11-02T10:30:00+06:00
+LEGACY-1004,omar.k@example.com,Feature request: dark mode,Would love a dark theme for the customer portal.,medium,feature-request,,,
+LEGACY-1005,new.customer@example.com,Password reset link expired,The reset link I received says it has expired.,MEDIUM,Account & Login,closed,,2026-09-15T08:00:00Z

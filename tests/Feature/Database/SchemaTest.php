@@ -24,15 +24,17 @@ it('indexes the tickets table for every list, filter and scanner query', functio
     expect($indexes['ticket_number']['unique'])->toBeTrue()
         ->and($indexes['source,external_reference']['unique'])->toBeTrue();
 
+    // Covering indexes measured on 100k tickets (docs/PERFORMANCE.md, migration 2026_11_07_100003).
     foreach ([
-        'status,due_at',
-        'assigned_agent_id,status',
-        'created_by,created_at',
-        'priority,status',
-        'category_id,status',
-        'status,sla_warning_at',
-        'status,is_escalated,due_at',
-        'created_at',
+        'status,due_at,breached_notified_at',
+        'assigned_agent_id,status,due_at,priority,is_escalated,sla_warning_at,resolved_at',
+        'created_by,created_at,status',
+        'priority,status,due_at',
+        'category_id,status,due_at',
+        'status,sla_warning_at,due_at,warning_notified_at',
+        'status,is_escalated,escalation_level,due_at',
+        'created_at,status',
+        'status,priority,assigned_agent_id,is_escalated,due_at,sla_warning_at',
     ] as $columns) {
         expect($indexes)->toHaveKey($columns);
     }

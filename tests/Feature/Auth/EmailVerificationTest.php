@@ -44,3 +44,10 @@ test('email is not verified with invalid hash', function () {
 
     expect($user->fresh()->hasVerifiedEmail())->toBeFalse();
 });
+
+test('unverified users are sent to the verification notice instead of the app', function () {
+    $user = User::factory()->unverified()->create();
+
+    $this->actingAs($user)->get(route('tickets.index'))->assertRedirect(route('verification.notice'));
+    $this->actingAs($user)->get(route('dashboard'))->assertRedirect(route('verification.notice'));
+});

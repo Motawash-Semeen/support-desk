@@ -6,6 +6,9 @@ use App\Models\Holiday;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
+ * Default dates are 60+ days ahead of the (frozen) clock, so a holiday made
+ * without an explicit date can never fall inside a test's SLA window.
+ *
  * @extends Factory<Holiday>
  */
 class HolidayFactory extends Factory
@@ -13,7 +16,7 @@ class HolidayFactory extends Factory
     public function definition(): array
     {
         return [
-            'date' => fake()->unique()->dateTimeBetween('-1 year', '+1 year')->format('Y-m-d'),
+            'date' => now()->addDays(fake()->unique()->numberBetween(60, 420))->format('Y-m-d'),
             'name' => ucfirst(fake()->words(2, true)).' Day',
         ];
     }

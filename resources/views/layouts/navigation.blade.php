@@ -16,20 +16,43 @@
                         {{ __('Tickets') }}
                     </x-nav-link>
                     @can('view-dashboard')
-                        <x-nav-link :href="route('staff.dashboard')" :active="request()->routeIs('staff.*')">
+                        <x-nav-link :href="route('staff.dashboard')" :active="request()->routeIs('staff.dashboard')">
                             {{ __('Staff dashboard') }}
                         </x-nav-link>
                     @endcan
+                    @can('view-unassigned-queue')
+                        <x-nav-link :href="route('staff.unassigned')" :active="request()->routeIs('staff.unassigned')">
+                            {{ __('Unassigned queue') }}
+                        </x-nav-link>
+                    @endcan
                     @can('manage-sla-settings')
-                        <x-nav-link :href="route('admin.sla-settings.index')" :active="request()->routeIs('admin.*')">
+                        <x-nav-link :href="route('admin.sla-settings.index')" :active="request()->routeIs('admin.sla-settings.*')">
                             {{ __('SLA settings') }}
+                        </x-nav-link>
+                    @endcan
+                    @can('import', App\Models\Ticket::class)
+                        <x-nav-link :href="route('admin.imports.index')" :active="request()->routeIs('admin.imports.*')">
+                            {{ __('Import') }}
                         </x-nav-link>
                     @endcan
                 </div>
             </div>
 
             <!-- Settings Dropdown -->
-            <div class="hidden sm:flex sm:items-center sm:ms-6">
+            <div class="hidden sm:flex sm:items-center sm:ms-6 gap-2">
+                <!-- Notification bell -->
+                <a href="{{ route('notifications.index') }}" class="relative p-2 text-gray-500 hover:text-gray-700"
+                   aria-label="{{ trans_choice('{0} Notifications|{1} 1 unread notification|[2,*] :count unread notifications', $unreadNotifications, ['count' => $unreadNotifications]) }}">
+                    <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
+                    </svg>
+                    @if ($unreadNotifications > 0)
+                        <span data-testid="unread-count" class="absolute -top-0.5 -right-0.5 min-w-5 rounded-full bg-red-600 px-1 text-center text-xs font-semibold text-white">
+                            {{ $unreadNotifications > 99 ? '99+' : $unreadNotifications }}
+                        </span>
+                    @endif
+                </a>
+
                 <x-dropdown align="right" width="48">
                     <x-slot name="trigger">
                         <button class="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-gray-500 bg-white hover:text-gray-700 focus:outline-none transition ease-in-out duration-150">
@@ -81,13 +104,26 @@
                 {{ __('Tickets') }}
             </x-responsive-nav-link>
             @can('view-dashboard')
-                <x-responsive-nav-link :href="route('staff.dashboard')" :active="request()->routeIs('staff.*')">
+                <x-responsive-nav-link :href="route('staff.dashboard')" :active="request()->routeIs('staff.dashboard')">
                     {{ __('Staff dashboard') }}
                 </x-responsive-nav-link>
             @endcan
+            @can('view-unassigned-queue')
+                <x-responsive-nav-link :href="route('staff.unassigned')" :active="request()->routeIs('staff.unassigned')">
+                    {{ __('Unassigned queue') }}
+                </x-responsive-nav-link>
+            @endcan
+            <x-responsive-nav-link :href="route('notifications.index')" :active="request()->routeIs('notifications.*')">
+                {{ __('Notifications') }}@if ($unreadNotifications > 0) ({{ $unreadNotifications }})@endif
+            </x-responsive-nav-link>
             @can('manage-sla-settings')
-                <x-responsive-nav-link :href="route('admin.sla-settings.index')" :active="request()->routeIs('admin.*')">
+                <x-responsive-nav-link :href="route('admin.sla-settings.index')" :active="request()->routeIs('admin.sla-settings.*')">
                     {{ __('SLA settings') }}
+                </x-responsive-nav-link>
+            @endcan
+            @can('import', App\Models\Ticket::class)
+                <x-responsive-nav-link :href="route('admin.imports.index')" :active="request()->routeIs('admin.imports.*')">
+                    {{ __('Import') }}
                 </x-responsive-nav-link>
             @endcan
         </div>

@@ -78,12 +78,15 @@ class TicketPolicy
         return $user->isAdmin() && $ticket->isActive();
     }
 
-    /** An agent self-claims an unassigned, active ticket. */
+    /**
+     * Who may TRY to self-claim: any agent, on an active ticket. Whether the
+     * ticket is still unassigned is decided atomically by ClaimTicket, so a
+     * lost race is a 409 Conflict ("just taken"), not a 403. Views add the
+     * unassigned check to hide the button (D-070).
+     */
     public function accept(User $user, Ticket $ticket): bool
     {
-        return $user->isAgent()
-            && $ticket->assigned_agent_id === null
-            && $ticket->isActive();
+        return $user->isAgent() && $ticket->isActive();
     }
 
     /** Move an assigned ticket to a different agent. */
@@ -102,8 +105,16 @@ class TicketPolicy
             && $ticket->isActive();
     }
 
+    /**
+     * Public replies. Closed tickets take none: the customer reopens first
+     * (D-079). Internal notes stay possible on closed tickets.
+     */
     public function reply(User $user, Ticket $ticket): bool
     {
+        if ($ticket->status === TicketStatus::Closed) {
+            return false;
+        }
+
         return $user->isAdmin()
             || $this->isAssignee($user, $ticket)
             || $this->owns($user, $ticket);
@@ -128,15 +139,28 @@ class TicketPolicy
             || ($this->owns($user, $ticket) && $ticket->status === TicketStatus::Resolved);
     }
 
-    /** Customers reopen a resolved ticket; staff reopen resolved or closed ones. */
+    /**
+     * Resolved tickets may be reopened by the customer owner, the assignee or
+     * an admin. Closed is terminal: only an admin may reopen it.
+     */
     public function reopen(User $user, Ticket $ticket): bool
     {
-        if ($this->owns($user, $ticket) && ! $user->isStaff()) {
-            return $ticket->status === TicketStatus::Resolved;
-        }
+        return match ($ticket->status) {
+            TicketStatus::Resolved => $user->isAdmin()
+                || $this->isAssignee($user, $ticket)
+                || ($user->isCustomer() && $this->owns($user, $ticket)),
+            TicketStatus::Closed => $user->isAdmin(),
+            default => false,
+        };
+    }
 
-        return ($user->isAdmin() || $this->isAssignee($user, $ticket))
-            && ! $ticket->isActive();
+    /**
+     * Move between working statuses (open / in progress / waiting for
+     * customer). Resolve, close and reopen have their own abilities.
+     */
+    public function changeStatus(User $user, Ticket $ticket): bool
+    {
+        return $user->isAdmin() || $this->isAssignee($user, $ticket);
     }
 
     /** The ONLY gate for internal-note visibility (replies, attachments, timeline). */

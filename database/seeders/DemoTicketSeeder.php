@@ -7,12 +7,13 @@ use App\Enums\ReplyType;
 use App\Enums\Role;
 use App\Enums\TicketStatus;
 use App\Models\Category;
-use App\Models\SlaPolicy;
 use App\Models\Ticket;
 use App\Models\TicketActivity;
 use App\Models\TicketReply;
-use App\Models\TicketSequence;
 use App\Models\User;
+use App\Services\Sla\SlaPolicyRepository;
+use App\Services\TicketNumberGenerator;
+use Carbon\CarbonImmutable;
 use Database\Factories\TicketFactory;
 use DateTimeInterface;
 use Illuminate\Database\Seeder;
@@ -28,10 +29,15 @@ class DemoTicketSeeder extends Seeder
 {
     private const INSERT_CHUNK = 500;
 
+    public function __construct(
+        private readonly TicketNumberGenerator $numbers,
+        private readonly SlaPolicyRepository $rules,
+    ) {}
+
     public function run(): void
     {
         if (Ticket::query()->exists()) {
-            $this->command?->warn('Tickets already exist; demo tickets skipped.');
+            $this->command->warn('Tickets already exist; demo tickets skipped.');
 
             return;
         }
@@ -39,14 +45,16 @@ class DemoTicketSeeder extends Seeder
         $customers = User::query()->role(Role::Customer)->pluck('id');
         $agents = User::query()->agents()->pluck('id');
         $categories = Category::query()->pluck('id');
-        $policies = SlaPolicy::query()->get()->keyBy(fn (SlaPolicy $policy) => $policy->priority->value);
+        $rules = $this->rules;
 
-        DB::transaction(function () use ($customers, $agents, $categories, $policies): void {
+        DB::transaction(function () use ($customers, $agents, $categories, $rules): void {
+            // Policy ids and minutes come from the rule repository; demo due
+            // dates stay wall-clock approximations so every SLA state appears.
             $base = fn (): TicketFactory => Ticket::factory()->state(fn () => [
                 'created_by' => $customers->random(),
                 'category_id' => $categories->random(),
-                'sla_policy_id' => fn (array $a) => $policies[$a['priority']->value]->id,
-                'sla_minutes' => fn (array $a) => $policies[$a['priority']->value]->resolution_minutes,
+                'sla_policy_id' => fn (array $a) => $rules->policyFor($a['priority'])->id,
+                'sla_minutes' => fn (array $a) => $rules->policyFor($a['priority'])->minutes,
             ]);
             $agent = fn () => ['assigned_agent_id' => $agents->random()];
 
@@ -68,7 +76,7 @@ class DemoTicketSeeder extends Seeder
                 ->get();
 
             $this->insertHistory($tickets);
-            $this->syncTicketSequences($tickets);
+            $this->assignRealNumbers($tickets);
             $this->syncAgentLastAssigned($tickets);
         });
     }
@@ -80,7 +88,7 @@ class DemoTicketSeeder extends Seeder
         $activities = [];
 
         foreach ($tickets as $ticket) {
-            $activities[] = $this->activity($ticket, ActivityType::Created, $ticket->created_by, 'Ticket created', $ticket->created_at);
+            $activities[] = $this->activity($ticket, ActivityType::TicketCreated, $ticket->created_by, 'Ticket created', $ticket->created_at);
 
             if ($ticket->assigned_agent_id !== null) {
                 $activities[] = $this->activity($ticket, ActivityType::Assigned, null, 'Ticket auto-assigned', $ticket->assigned_at,
@@ -116,18 +124,22 @@ class DemoTicketSeeder extends Seeder
         }
     }
 
-    /** Keep the per-year counter ahead of the seeded numbers so new tickets never collide. */
-    private function syncTicketSequences(Collection $tickets): void
+    /**
+     * Replace factory numbers with real ones from TicketNumberGenerator, in
+     * creation order, one reserve() block per year. The sequence table ends
+     * up exactly where new tickets should continue.
+     */
+    private function assignRealNumbers(Collection $tickets): void
     {
-        $rows = $tickets
-            ->map(fn (Ticket $ticket) => preg_match('/-(\d{4})-(\d+)$/', $ticket->ticket_number, $m) ? [(int) $m[1], (int) $m[2]] : null)
-            ->filter()
-            ->groupBy(0)
-            ->map(fn (Collection $numbers, int $year) => ['year' => $year, 'last_number' => $numbers->max(1)])
-            ->values()
-            ->all();
+        $tickets->sortBy([['created_at', 'asc'], ['id', 'asc']])
+            ->groupBy(fn (Ticket $ticket) => $ticket->created_at->year)
+            ->each(function (Collection $yearTickets, int $year): void {
+                $numbers = $this->numbers->reserve($yearTickets->count(), CarbonImmutable::create($year));
 
-        TicketSequence::query()->upsert($rows, ['year'], ['last_number']);
+                $yearTickets->values()->each(fn (Ticket $ticket, int $i) => Ticket::query()
+                    ->whereKey($ticket->id)
+                    ->update(['ticket_number' => $numbers[$i]]));
+            });
     }
 
     private function syncAgentLastAssigned(Collection $tickets): void

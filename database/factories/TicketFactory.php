@@ -26,12 +26,20 @@ use Illuminate\Database\Eloquent\Factories\Factory;
  */
 class TicketFactory extends Factory
 {
+    /**
+     * Factory numbers come from a separate range (900001+) so they can never
+     * collide with numbers issued by TicketNumberGenerator, which starts at 1.
+     * The demo seeder replaces them with real generator numbers.
+     */
+    public const NUMBER_RANGE_START = 900_000;
+
     /** @var array<int, int> per-year counter so factory numbers stay unique in a process */
     protected static array $sequence = [];
 
     public function definition(): array
     {
-        $createdAt = CarbonImmutable::instance(fake()->dateTimeBetween('-30 days', '-2 hours'));
+        // Relative to now() (not Faker's real clock) so Carbon::setTestNow governs it.
+        $createdAt = CarbonImmutable::now()->subMinutes(fake()->numberBetween(2 * 60, 30 * 24 * 60));
 
         return [
             'ticket_number' => fn (array $a) => self::nextNumber(self::at($a['created_at'])->year),
@@ -147,6 +155,34 @@ class TicketFactory extends Factory
         return $this->state(['priority' => $priority]);
     }
 
+    public function critical(): static
+    {
+        return $this->priority(TicketPriority::Critical);
+    }
+
+    public function high(): static
+    {
+        return $this->priority(TicketPriority::High);
+    }
+
+    public function low(): static
+    {
+        return $this->priority(TicketPriority::Low);
+    }
+
+    /** Open and in nobody's queue (undoes an earlier assigned()/workflow state). */
+    public function unassigned(): static
+    {
+        return $this->state([
+            'status' => TicketStatus::Open,
+            'assigned_agent_id' => null,
+            'assigned_at' => null,
+            'first_response_at' => null,
+            'resolved_at' => null,
+            'closed_at' => null,
+        ]);
+    }
+
     /** Snapshot an existing policy, as ticket creation will. */
     public function withSlaPolicy(SlaPolicy $policy): static
     {
@@ -179,7 +215,7 @@ class TicketFactory extends Factory
 
     protected static function nextNumber(int $year): string
     {
-        static::$sequence[$year] = (static::$sequence[$year] ?? 0) + 1;
+        static::$sequence[$year] = (static::$sequence[$year] ?? self::NUMBER_RANGE_START) + 1;
 
         return sprintf(
             '%s-%d-%s',

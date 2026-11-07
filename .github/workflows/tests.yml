@@ -2,46 +2,79 @@ name: Tests
 
 on:
   push:
-    branches:
-      - master
-      - '*.x'
+    branches: [main]
   pull_request:
-  schedule:
-    - cron: '0 0 * * *'
 
 permissions:
   contents: read
 
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   tests:
+    name: Pint, Larastan, Pest (MySQL 8)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
 
-    strategy:
-      fail-fast: true
-      matrix:
-        php: [8.2, 8.3, 8.4]
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: password
+          MYSQL_DATABASE: support_desk_testing
+        ports:
+          - 3306:3306
+        # Data dir on tmpfs: the database is throwaway, so skip disk fsyncs.
+        options: >-
+          --tmpfs /var/lib/mysql
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -ppassword"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=30
 
-    name: PHP ${{ matrix.php }}
+    env:
+      # tests/bootstrap.php switches the suite from SQLite to this MySQL.
+      DB_TEST_CONNECTION: mysql
+      DB_TEST_HOST: 127.0.0.1
+      DB_TEST_PORT: 3306
+      DB_TEST_DATABASE: support_desk_testing
+      DB_TEST_USERNAME: root
+      DB_TEST_PASSWORD: password
 
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v6
+      - name: Checkout
+        uses: actions/checkout@v4
 
-      - name: Setup PHP
+      - name: Set up PHP 8.2
         uses: shivammathur/setup-php@v2
         with:
-          php-version: ${{ matrix.php }}
-          extensions: dom, curl, libxml, mbstring, zip, pcntl, pdo, sqlite, pdo_sqlite
+          php-version: '8.2'
+          extensions: mbstring, pdo_mysql, pdo_sqlite, fileinfo, gd, zip
           coverage: none
+          tools: composer:v2
 
-      - name: Install Composer dependencies
-        run: composer install --prefer-dist --no-interaction --no-progress
+      - name: Cache Composer packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.composer/cache/files
+          key: composer-${{ hashFiles('composer.lock') }}
+          restore-keys: composer-
 
-      - name: Copy environment file
-        run: cp .env.example .env
+      - name: Install dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress
 
-      - name: Generate app key
-        run: php artisan key:generate
+      - name: Prepare environment
+        run: |
+          cp .env.example .env
+          php artisan key:generate
 
-      - name: Execute tests
-        run: php artisan test
+      - name: Code style (Pint)
+        run: vendor/bin/pint --test
+
+      - name: Static analysis (Larastan level 5)
+        run: vendor/bin/phpstan analyse --no-progress --memory-limit=1G
+
+      - name: Tests (parallel, one MySQL database per process)
+        run: php artisan test --parallel --processes=4

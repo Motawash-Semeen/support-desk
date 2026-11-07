@@ -40,11 +40,30 @@ class TicketActivity extends Model
         ];
     }
 
+    /**
+     * Append-only: rows are created, never changed or removed through the
+     * model. (They disappear only by the database cascade when their ticket
+     * is deleted.) There are no update or delete routes.
+     */
     protected static function booted(): void
     {
         static::updating(function (): never {
             throw new LogicException('Ticket activities are append-only and cannot be modified.');
         });
+
+        static::deleting(function (): never {
+            throw new LogicException('Ticket activities are append-only and cannot be deleted.');
+        });
+    }
+
+    public function update(array $attributes = [], array $options = []): bool
+    {
+        throw new LogicException('Ticket activities are append-only and cannot be modified.');
+    }
+
+    public function delete(): ?bool
+    {
+        throw new LogicException('Ticket activities are append-only and cannot be deleted.');
     }
 
     /** @return BelongsTo<Ticket, $this> */

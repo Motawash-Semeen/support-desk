@@ -73,6 +73,31 @@ return [
             'after_commit' => false,
         ],
 
+        /*
+        | CSV imports run up to an hour (ProcessTicketImport::$timeout = 3600).
+        | retry_after MUST be longer than that, or a second worker would pick
+        | up the same job while the first is still running. Same backends as
+        | above, only the retry window and the queue name differ.
+        | Select with SUPPORT_IMPORT_QUEUE_CONNECTION.
+        */
+        'imports-redis' => [
+            'driver' => 'redis',
+            'connection' => env('REDIS_QUEUE_CONNECTION', 'default'),
+            'queue' => 'imports',
+            'retry_after' => 3700,
+            'block_for' => null,
+            'after_commit' => false,
+        ],
+
+        'imports-database' => [
+            'driver' => 'database',
+            'connection' => env('DB_QUEUE_CONNECTION'),
+            'table' => env('DB_QUEUE_TABLE', 'jobs'),
+            'queue' => 'imports',
+            'retry_after' => 3700,
+            'after_commit' => false,
+        ],
+
         'deferred' => [
             'driver' => 'deferred',
         ],
