@@ -1,5 +1,5 @@
 @props(['ticket'])
 
 @if ($status = $ticket->slaStatus())
-    <x-badge :color="$status->color()">{{ __($status->label()) }}</x-badge>
+    <x-badge :color="$status->color()" {{ $attributes }}>{{ __($status->label()) }}</x-badge>
 @endif

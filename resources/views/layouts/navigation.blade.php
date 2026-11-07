@@ -1,156 +1,92 @@
-<nav x-data="{ open: false }" class="bg-white border-b border-gray-100">
-    <!-- Primary Navigation Menu -->
-    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div class="flex justify-between h-16">
-            <div class="flex">
-                <!-- Logo -->
-                <div class="shrink-0 flex items-center">
-                    <a href="{{ route('dashboard') }}">
-                        <x-application-logo class="block h-9 w-auto fill-current text-gray-800" />
-                    </a>
-                </div>
+{{--
+    Sidebar. Rendered twice (desktop + mobile drawer); $unreadNotifications
+    comes from the view composer in AppServiceProvider (one query per request).
+--}}
+@php($user = Auth::user())
 
-                <!-- Navigation Links -->
-                <div class="hidden space-x-8 sm:-my-px sm:ms-10 sm:flex">
-                    <x-nav-link :href="route('tickets.index')" :active="request()->routeIs('tickets.*')">
-                        {{ __('Tickets') }}
-                    </x-nav-link>
-                    @can('view-dashboard')
-                        <x-nav-link :href="route('staff.dashboard')" :active="request()->routeIs('staff.dashboard')">
-                            {{ __('Staff dashboard') }}
-                        </x-nav-link>
-                    @endcan
-                    @can('view-unassigned-queue')
-                        <x-nav-link :href="route('staff.unassigned')" :active="request()->routeIs('staff.unassigned')">
-                            {{ __('Unassigned queue') }}
-                        </x-nav-link>
-                    @endcan
-                    @can('manage-sla-settings')
-                        <x-nav-link :href="route('admin.sla-settings.index')" :active="request()->routeIs('admin.sla-settings.*')">
-                            {{ __('SLA settings') }}
-                        </x-nav-link>
-                    @endcan
-                    @can('import', App\Models\Ticket::class)
-                        <x-nav-link :href="route('admin.imports.index')" :active="request()->routeIs('admin.imports.*')">
-                            {{ __('Import') }}
-                        </x-nav-link>
-                    @endcan
-                </div>
-            </div>
+<nav class="flex h-full w-full flex-col bg-ink-950 px-3 pb-3 pt-5" aria-label="{{ __('Main') }}">
+    <a href="{{ route('dashboard') }}" class="mb-6 px-2">
+        <x-brand :dark="true" />
+    </a>
 
-            <!-- Settings Dropdown -->
-            <div class="hidden sm:flex sm:items-center sm:ms-6 gap-2">
-                <!-- Notification bell -->
-                <a href="{{ route('notifications.index') }}" class="relative p-2 text-gray-500 hover:text-gray-700"
-                   aria-label="{{ trans_choice('{0} Notifications|{1} 1 unread notification|[2,*] :count unread notifications', $unreadNotifications, ['count' => $unreadNotifications]) }}">
-                    <svg class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-                        <path stroke-linecap="round" stroke-linejoin="round" d="M14.857 17.082a23.848 23.848 0 0 0 5.454-1.31A8.967 8.967 0 0 1 18 9.75V9A6 6 0 0 0 6 9v.75a8.967 8.967 0 0 1-2.312 6.022c1.733.64 3.56 1.085 5.455 1.31m5.714 0a24.255 24.255 0 0 1-5.714 0m5.714 0a3 3 0 1 1-5.714 0" />
-                    </svg>
-                    @if ($unreadNotifications > 0)
-                        <span data-testid="unread-count" class="absolute -top-0.5 -right-0.5 min-w-5 rounded-full bg-red-600 px-1 text-center text-xs font-semibold text-white">
-                            {{ $unreadNotifications > 99 ? '99+' : $unreadNotifications }}
-                        </span>
-                    @endif
-                </a>
+    @can('create', App\Models\Ticket::class)
+        <a href="{{ route('tickets.create') }}" class="btn btn-primary mb-6 w-full">
+            <x-icon name="plus" class="h-4 w-4" />
+            {{ __('New ticket') }}
+        </a>
+    @endcan
 
-                <x-dropdown align="right" width="48">
-                    <x-slot name="trigger">
-                        <button class="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-gray-500 bg-white hover:text-gray-700 focus:outline-none transition ease-in-out duration-150">
-                            <div>{{ Auth::user()->name }}</div>
-
-                            <div class="ms-1">
-                                <svg class="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
-                                    <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
-                                </svg>
-                            </div>
-                        </button>
-                    </x-slot>
-
-                    <x-slot name="content">
-                        <x-dropdown-link :href="route('profile.edit')">
-                            {{ __('Profile') }}
-                        </x-dropdown-link>
-
-                        <!-- Authentication -->
-                        <form method="POST" action="{{ route('logout') }}">
-                            @csrf
-
-                            <x-dropdown-link :href="route('logout')"
-                                    onclick="event.preventDefault();
-                                                this.closest('form').submit();">
-                                {{ __('Log Out') }}
-                            </x-dropdown-link>
-                        </form>
-                    </x-slot>
-                </x-dropdown>
-            </div>
-
-            <!-- Hamburger -->
-            <div class="-me-2 flex items-center sm:hidden">
-                <button @click="open = ! open" class="inline-flex items-center justify-center p-2 rounded-md text-gray-400 hover:text-gray-500 hover:bg-gray-100 focus:outline-none focus:bg-gray-100 focus:text-gray-500 transition duration-150 ease-in-out">
-                    <svg class="h-6 w-6" stroke="currentColor" fill="none" viewBox="0 0 24 24">
-                        <path :class="{'hidden': open, 'inline-flex': ! open }" class="inline-flex" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
-                        <path :class="{'hidden': ! open, 'inline-flex': open }" class="hidden" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                </button>
-            </div>
+    <div class="flex-1 space-y-6 overflow-y-auto">
+        <div class="space-y-1">
+            <p class="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-ink-500">{{ __('Workspace') }}</p>
+            @can('view-dashboard')
+                <x-nav-link :href="route('staff.dashboard')" :active="request()->routeIs('staff.dashboard')" icon="chart">{{ __('Dashboard') }}</x-nav-link>
+            @endcan
+            <x-nav-link :href="route('tickets.index')" :active="request()->routeIs('tickets.*')" icon="ticket">
+                @staff {{ __('Tickets') }} @else {{ __('My tickets') }} @endstaff
+            </x-nav-link>
+            @can('view-unassigned-queue')
+                <x-nav-link :href="route('staff.unassigned')" :active="request()->routeIs('staff.unassigned')" icon="inbox">{{ __('Unassigned queue') }}</x-nav-link>
+            @endcan
+            <a href="{{ route('notifications.index') }}"
+               @class([
+                   'group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium',
+                   'bg-white/10 text-white' => request()->routeIs('notifications.*'),
+                   'text-ink-300 hover:bg-white/5 hover:text-white' => ! request()->routeIs('notifications.*'),
+               ])
+               aria-label="{{ trans_choice('{0} Notifications|{1} 1 unread notification|[2,*] :count unread notifications', $unreadNotifications, ['count' => $unreadNotifications]) }}">
+                <x-icon name="bell" @class(['h-5 w-5 shrink-0', 'text-brand-300' => request()->routeIs('notifications.*'), 'text-ink-400 group-hover:text-ink-200' => ! request()->routeIs('notifications.*')]) />
+                <span class="flex-1">{{ __('Notifications') }}</span>
+                @if ($unreadNotifications > 0)
+                    <span data-testid="unread-count" class="rounded-full bg-rose-500 px-2 py-0.5 text-xs font-semibold text-white">
+                        {{ $unreadNotifications > 99 ? '99+' : $unreadNotifications }}
+                    </span>
+                @endif
+            </a>
         </div>
+
+        @if ($user->can('manage-sla-settings') || $user->can('import', App\Models\Ticket::class))
+            <div class="space-y-1">
+                <p class="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-ink-500">{{ __('Administration') }}</p>
+                @can('manage-sla-settings')
+                    <x-nav-link :href="route('admin.sla-settings.index')" :active="request()->routeIs('admin.sla-settings.*')" icon="adjustments">{{ __('SLA settings') }}</x-nav-link>
+                @endcan
+                @can('import', App\Models\Ticket::class)
+                    <x-nav-link :href="route('admin.imports.index')" :active="request()->routeIs('admin.imports.*')" icon="upload">{{ __('Import') }}</x-nav-link>
+                @endcan
+            </div>
+        @endif
     </div>
 
-    <!-- Responsive Navigation Menu -->
-    <div :class="{'block': open, 'hidden': ! open}" class="hidden sm:hidden">
-        <div class="pt-2 pb-3 space-y-1">
-            <x-responsive-nav-link :href="route('tickets.index')" :active="request()->routeIs('tickets.*')">
-                {{ __('Tickets') }}
-            </x-responsive-nav-link>
-            @can('view-dashboard')
-                <x-responsive-nav-link :href="route('staff.dashboard')" :active="request()->routeIs('staff.dashboard')">
-                    {{ __('Staff dashboard') }}
-                </x-responsive-nav-link>
-            @endcan
-            @can('view-unassigned-queue')
-                <x-responsive-nav-link :href="route('staff.unassigned')" :active="request()->routeIs('staff.unassigned')">
-                    {{ __('Unassigned queue') }}
-                </x-responsive-nav-link>
-            @endcan
-            <x-responsive-nav-link :href="route('notifications.index')" :active="request()->routeIs('notifications.*')">
-                {{ __('Notifications') }}@if ($unreadNotifications > 0) ({{ $unreadNotifications }})@endif
-            </x-responsive-nav-link>
-            @can('manage-sla-settings')
-                <x-responsive-nav-link :href="route('admin.sla-settings.index')" :active="request()->routeIs('admin.sla-settings.*')">
-                    {{ __('SLA settings') }}
-                </x-responsive-nav-link>
-            @endcan
-            @can('import', App\Models\Ticket::class)
-                <x-responsive-nav-link :href="route('admin.imports.index')" :active="request()->routeIs('admin.imports.*')">
-                    {{ __('Import') }}
-                </x-responsive-nav-link>
-            @endcan
-        </div>
+    {{-- Account --}}
+    <div class="mt-4 border-t border-white/10 pt-3">
+        <x-dropdown align="full" width="full" direction="up">
+            <x-slot name="trigger">
+                <button type="button" class="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left hover:bg-white/5">
+                    <x-avatar :name="$user->name" />
+                    <span class="min-w-0 flex-1">
+                        <span class="block truncate text-sm font-medium text-white">{{ $user->name }}</span>
+                        <span class="block truncate text-xs text-ink-400">{{ $user->role->label() }}</span>
+                    </span>
+                    <x-icon name="chevron-up-down" class="h-4 w-4 text-ink-400" />
+                </button>
+            </x-slot>
 
-        <!-- Responsive Settings Options -->
-        <div class="pt-4 pb-1 border-t border-gray-200">
-            <div class="px-4">
-                <div class="font-medium text-base text-gray-800">{{ Auth::user()->name }}</div>
-                <div class="font-medium text-sm text-gray-500">{{ Auth::user()->email }}</div>
-            </div>
-
-            <div class="mt-3 space-y-1">
-                <x-responsive-nav-link :href="route('profile.edit')">
-                    {{ __('Profile') }}
-                </x-responsive-nav-link>
-
-                <!-- Authentication -->
-                <form method="POST" action="{{ route('logout') }}">
-                    @csrf
-
-                    <x-responsive-nav-link :href="route('logout')"
-                            onclick="event.preventDefault();
-                                        this.closest('form').submit();">
-                        {{ __('Log Out') }}
-                    </x-responsive-nav-link>
-                </form>
-            </div>
-        </div>
+            <x-slot name="content">
+                <div class="border-b border-ink-100 px-2.5 pb-2 pt-1">
+                    <p class="truncate text-xs text-ink-500">{{ $user->email }}</p>
+                </div>
+                <div class="pt-1">
+                    <x-dropdown-link :href="route('profile.edit')" icon="user">{{ __('Profile') }}</x-dropdown-link>
+                    <form method="POST" action="{{ route('logout') }}">
+                        @csrf
+                        <button type="submit" class="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm text-ink-700 hover:bg-ink-50 hover:text-ink-900">
+                            <x-icon name="logout" class="h-4 w-4 text-ink-400" />
+                            {{ __('Log Out') }}
+                        </button>
+                    </form>
+                </div>
+            </x-slot>
+        </x-dropdown>
     </div>
 </nav>

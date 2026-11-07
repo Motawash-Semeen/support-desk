@@ -19,37 +19,47 @@
         'reopen' => auth()->user()->can('reopen', $ticket) && $possible(TicketStatus::reopenTarget()) ? __('Reopen') : null,
     ]);
     $canChangeStatus = auth()->user()->can('changeStatus', $ticket) && $workingMoves !== [];
+    $icons = ['resolve' => 'check-circle', 'close' => 'lock', 'reopen' => 'refresh'];
 @endphp
 
 @if ($actions !== [] || $canChangeStatus)
-    <section class="bg-white shadow-sm sm:rounded-lg p-6 space-y-4">
-        <h3 class="font-semibold text-gray-800">{{ __('Actions') }}</h3>
+    <x-card :title="__('Actions')">
+        <div class="space-y-4">
+            @if ($canChangeStatus)
+                <form method="POST" action="{{ route('tickets.status', $ticket) }}" class="space-y-1.5">
+                    @csrf
+                    <label for="status" class="field-label">{{ __('Change status') }}</label>
+                    <div class="flex gap-2">
+                        <select id="status" name="status" class="field-input flex-1">
+                            @foreach ($workingMoves as $to)
+                                <option value="{{ $to->value }}">{{ $to->label() }}</option>
+                            @endforeach
+                        </select>
+                        <x-secondary-button type="submit">{{ __('Set') }}</x-secondary-button>
+                    </div>
+                </form>
+            @endif
 
-        @if ($canChangeStatus)
-            <form method="POST" action="{{ route('tickets.status', $ticket) }}" class="flex gap-2">
-                @csrf
-                <label for="status" class="sr-only">{{ __('Change status') }}</label>
-                <select id="status" name="status" class="flex-1 border-gray-300 rounded-md shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500">
-                    @foreach ($workingMoves as $to)
-                        <option value="{{ $to->value }}">{{ $to->label() }}</option>
-                    @endforeach
-                </select>
-                <x-secondary-button type="submit">{{ __('Set') }}</x-secondary-button>
-            </form>
-        @endif
-
-        @foreach ($actions as $action => $label)
-            <form method="POST" action="{{ route("tickets.{$action}", $ticket) }}" class="space-y-2">
-                @csrf
-                <label for="reason-{{ $action }}" class="sr-only">{{ __('Reason (optional)') }}</label>
-                <input id="reason-{{ $action }}" name="reason" type="text" maxlength="1000" placeholder="{{ __('Reason (optional)') }}"
-                       class="block w-full border-gray-300 rounded-md shadow-sm text-sm focus:border-indigo-500 focus:ring-indigo-500">
-                @if ($action === 'reopen')
-                    <x-secondary-button type="submit" class="w-full justify-center">{{ $label }}</x-secondary-button>
-                @else
-                    <x-primary-button class="w-full justify-center">{{ $label }}</x-primary-button>
-                @endif
-            </form>
-        @endforeach
-    </section>
+            @foreach ($actions as $action => $label)
+                <form method="POST" action="{{ route("tickets.{$action}", $ticket) }}" class="space-y-2" x-data="{ reason: false }">
+                    @csrf
+                    <div x-show="reason" x-cloak>
+                        <label for="reason-{{ $action }}" class="sr-only">{{ __('Reason (optional)') }}</label>
+                        <input id="reason-{{ $action }}" name="reason" type="text" maxlength="1000" placeholder="{{ __('Reason (optional)') }}" class="field-input">
+                    </div>
+                    <div class="flex gap-2">
+                        @if ($action === 'reopen')
+                            <x-secondary-button type="submit" class="flex-1"><x-icon :name="$icons[$action]" class="h-4 w-4" /> {{ $label }}</x-secondary-button>
+                        @else
+                            <x-primary-button class="flex-1"><x-icon :name="$icons[$action]" class="h-4 w-4" /> {{ $label }}</x-primary-button>
+                        @endif
+                        <button type="button" class="btn btn-ghost px-2.5" @click="reason = ! reason" :aria-expanded="reason.toString()" title="{{ __('Add a reason') }}">
+                            <x-icon name="pencil" class="h-4 w-4" />
+                            <span class="sr-only">{{ __('Add a reason') }}</span>
+                        </button>
+                    </div>
+                </form>
+            @endforeach
+        </div>
+    </x-card>
 @endif

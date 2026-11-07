@@ -3,118 +3,118 @@
 
 @php
     $cards = [
-        ['label' => __('Active'), 'value' => $stats->totalActive, 'tone' => 'gray', 'query' => ['scope' => 'active']],
-        ['label' => __('Unassigned'), 'value' => $stats->unassignedActive, 'tone' => 'gray', 'query' => ['scope' => 'active', 'assigned_agent_id' => 'unassigned']],
-        ['label' => __('Critical'), 'value' => $stats->criticalActive, 'tone' => 'red', 'query' => ['scope' => 'active', 'priority' => ['critical']]],
-        ['label' => __('SLA breached'), 'value' => $stats->slaBreachedActive, 'tone' => 'red', 'query' => ['scope' => 'active', 'sla_status' => 'breached']],
-        ['label' => __('At risk'), 'value' => $stats->approachingActive, 'tone' => 'amber', 'query' => ['scope' => 'active', 'sla_status' => 'approaching']],
-        ['label' => __('Escalated'), 'value' => $stats->escalatedActive, 'tone' => 'red', 'query' => ['scope' => 'active', 'escalated' => 1]],
-        ['label' => __('Resolved / closed'), 'value' => $stats->resolvedTotal, 'tone' => 'green', 'query' => ['scope' => 'closed']],
-        ['label' => __('Resolved today'), 'value' => $stats->resolvedToday, 'tone' => 'green', 'query' => ['scope' => 'closed', 'sort' => 'updated_at', 'direction' => 'desc']],
+        ['label' => __('Active'), 'value' => $stats->totalActive, 'tone' => 'ink', 'icon' => 'ticket', 'query' => ['scope' => 'active']],
+        ['label' => __('Unassigned'), 'value' => $stats->unassignedActive, 'tone' => 'amber', 'icon' => 'inbox', 'query' => ['scope' => 'active', 'assigned_agent_id' => 'unassigned']],
+        ['label' => __('Critical'), 'value' => $stats->criticalActive, 'tone' => 'red', 'icon' => 'bolt', 'query' => ['scope' => 'active', 'priority' => ['critical']]],
+        ['label' => __('SLA breached'), 'value' => $stats->slaBreachedActive, 'tone' => 'red', 'icon' => 'alert', 'query' => ['scope' => 'active', 'sla_status' => 'breached']],
+        ['label' => __('At risk'), 'value' => $stats->approachingActive, 'tone' => 'amber', 'icon' => 'clock', 'query' => ['scope' => 'active', 'sla_status' => 'approaching']],
+        ['label' => __('Escalated'), 'value' => $stats->escalatedActive, 'tone' => 'red', 'icon' => 'shield', 'query' => ['scope' => 'active', 'escalated' => 1]],
+        ['label' => __('Resolved / closed'), 'value' => $stats->resolvedTotal, 'tone' => 'green', 'icon' => 'check-circle', 'query' => ['scope' => 'closed']],
+        ['label' => __('Resolved today'), 'value' => $stats->resolvedToday, 'tone' => 'green', 'icon' => 'sparkles', 'query' => ['scope' => 'closed', 'sort' => 'updated_at', 'direction' => 'desc']],
     ];
-    $toneClass = fn (string $tone, int $value) => match (true) {
-        $value === 0 => 'text-gray-900',
-        $tone === 'red' => 'text-red-600',
-        $tone === 'amber' => 'text-amber-600',
-        $tone === 'green' => 'text-green-700',
-        default => 'text-gray-900',
-    };
     $maxPriority = max([1, ...array_values($stats->byPriority)]);
     $maxAgent = max([1, ...array_column($stats->byAgent, 'active')]);
+    $barColor = fn (TicketPriority $p) => match ($p) {
+        TicketPriority::Critical => 'bg-rose-500',
+        TicketPriority::High => 'bg-orange-400',
+        TicketPriority::Medium => 'bg-sky-400',
+        default => 'bg-ink-300',
+    };
 @endphp
 
-<x-app-layout>
-    <x-slot name="header">
-        <div class="flex flex-wrap items-baseline justify-between gap-2">
-            <h2 class="font-semibold text-xl text-gray-800 leading-tight">{{ __('Staff dashboard') }}</h2>
-            <p class="text-xs text-gray-500">
-                {{ $stats->scope === 'global' ? __('All tickets') : __('Your tickets and the unassigned queue') }}
-                · {{ __('updated :time', ['time' => BusinessTime::format(\Carbon\CarbonImmutable::parse($stats->generatedAt), 'H:i:s')]) }}
-            </p>
-        </div>
+<x-app-layout :title="__('Dashboard')"
+              :subtitle="($stats->scope === 'global' ? __('All tickets') : __('Your tickets and the unassigned queue')).' · '.__('updated :time', ['time' => BusinessTime::format(\Carbon\CarbonImmutable::parse($stats->generatedAt), 'H:i:s')])">
+    <x-slot name="actions">
+        <a href="{{ route('staff.unassigned') }}" class="btn btn-secondary"><x-icon name="inbox" class="h-4 w-4" /> {{ __('Unassigned queue') }}</a>
+        <a href="{{ route('tickets.index') }}" class="btn btn-primary"><x-icon name="ticket" class="h-4 w-4" /> {{ __('All tickets') }}</a>
     </x-slot>
 
-    <div class="py-8">
-        <div class="max-w-7xl mx-auto sm:px-6 lg:px-8 space-y-6">
-            <div class="grid grid-cols-2 gap-4 md:grid-cols-4">
-                @foreach ($cards as $card)
-                    <a href="{{ route('tickets.index', $card['query']) }}" class="block bg-white shadow-sm sm:rounded-lg p-5 hover:ring-2 hover:ring-indigo-200 focus:outline-none focus:ring-2 focus:ring-indigo-400">
-                        <div class="text-sm text-gray-500">{{ $card['label'] }}</div>
-                        <div class="mt-1 text-3xl font-semibold {{ $toneClass($card['tone'], $card['value']) }}">{{ number_format($card['value']) }}</div>
-                    </a>
-                @endforeach
-            </div>
-
-            <div class="grid gap-6 lg:grid-cols-2">
-                <section class="bg-white shadow-sm sm:rounded-lg p-5">
-                    <h3 class="font-semibold text-gray-800 mb-3">{{ __('Active tickets by priority') }}</h3>
-                    <table class="w-full text-sm">
-                        <tbody>
-                            @foreach ($stats->byPriority as $priority => $count)
-                                @php($enum = TicketPriority::from($priority))
-                                <tr>
-                                    <td class="py-1.5 pr-3 w-24"><x-badge :color="$enum->color()">{{ $enum->label() }}</x-badge></td>
-                                    <td class="py-1.5">
-                                        <div class="h-2.5 rounded bg-gray-100" aria-hidden="true">
-                                            <div class="h-2.5 rounded bg-indigo-500" style="width: {{ round($count / $maxPriority * 100) }}%"></div>
-                                        </div>
-                                    </td>
-                                    <td class="py-1.5 pl-3 w-12 text-right tabular-nums">
-                                        <a href="{{ route('tickets.index', ['scope' => 'active', 'priority' => [$priority]]) }}" class="hover:underline">{{ $count }}</a>
-                                    </td>
-                                </tr>
-                            @endforeach
-                        </tbody>
-                    </table>
-                </section>
-
-                <section class="bg-white shadow-sm sm:rounded-lg p-5">
-                    <h3 class="font-semibold text-gray-800 mb-3">{{ __('Active tickets by agent') }}</h3>
-                    @if ($stats->byAgent === [])
-                        <p class="text-sm text-gray-500">{{ __('No assigned active tickets.') }}</p>
-                    @else
-                        <table class="w-full text-sm">
-                            <thead class="text-left text-xs text-gray-500">
-                                <tr><th class="pb-2">{{ __('Agent') }}</th><th class="pb-2"><span class="sr-only">{{ __('Load') }}</span></th><th class="pb-2 text-right">{{ __('Active') }}</th><th class="pb-2 text-right">{{ __('Breached') }}</th></tr>
-                            </thead>
-                            <tbody>
-                                @foreach ($stats->byAgent as $row)
-                                    <tr>
-                                        <td class="py-1.5 pr-3 whitespace-nowrap">
-                                            <a href="{{ route('tickets.index', ['scope' => 'active', 'assigned_agent_id' => $row['id']]) }}" class="hover:underline">{{ $row['name'] }}</a>
-                                        </td>
-                                        <td class="py-1.5 w-1/2">
-                                            <div class="h-2.5 rounded bg-gray-100" aria-hidden="true">
-                                                <div class="h-2.5 rounded bg-indigo-500" style="width: {{ round($row['active'] / $maxAgent * 100) }}%"></div>
-                                            </div>
-                                        </td>
-                                        <td class="py-1.5 pl-3 text-right tabular-nums">{{ $row['active'] }}</td>
-                                        <td @class(['py-1.5 pl-3 text-right tabular-nums', 'text-red-600 font-semibold' => $row['breached'] > 0])>{{ $row['breached'] }}</td>
-                                    </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
-                    @endif
-                </section>
-            </div>
-
-            <section class="bg-white shadow-sm sm:rounded-lg p-5">
-                <h3 class="font-semibold text-gray-800 mb-3">{{ __('Recent escalations') }}</h3>
-                <ul class="divide-y divide-gray-100 text-sm">
-                    @forelse ($stats->recentEscalations as $escalation)
-                        <li class="py-2 flex flex-wrap items-baseline justify-between gap-2">
-                            <span>
-                                <a href="{{ route('tickets.show', $escalation['ticket_number']) }}" class="font-mono text-indigo-600 hover:underline">{{ $escalation['ticket_number'] }}</a>
-                                {{ $escalation['subject'] }}
-                                <span class="text-gray-500">· {{ $escalation['agent'] ?? __('Unassigned') }}</span>
-                            </span>
-                            <span class="text-gray-500">{{ $escalation['description'] }} · {{ BusinessTime::format(\Carbon\CarbonImmutable::parse($escalation['at'])) }}</span>
-                        </li>
-                    @empty
-                        <li class="py-2 text-gray-500">{{ __('No escalations.') }}</li>
-                    @endforelse
-                </ul>
-            </section>
-        </div>
+    <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        @foreach ($cards as $card)
+            <x-stat-card :label="$card['label']" :value="$card['value']" :tone="$card['tone']" :icon="$card['icon']" :href="route('tickets.index', $card['query'])" />
+        @endforeach
     </div>
+
+    <div class="mt-6 grid gap-6 lg:grid-cols-5">
+        <x-card :title="__('Active tickets by priority')" class="lg:col-span-2">
+            <ul class="space-y-3">
+                @foreach ($stats->byPriority as $priority => $count)
+                    @php($enum = TicketPriority::from($priority))
+                    <li>
+                        <a href="{{ route('tickets.index', ['scope' => 'active', 'priority' => [$priority]]) }}" class="group block">
+                            <div class="mb-1.5 flex items-center justify-between text-sm">
+                                <span class="font-medium text-ink-700 group-hover:text-brand-700">{{ $enum->label() }}</span>
+                                <span class="tabular-nums text-ink-500">{{ $count }}</span>
+                            </div>
+                            <div class="h-2 overflow-hidden rounded-full bg-ink-100" aria-hidden="true">
+                                <div class="h-2 rounded-full {{ $barColor($enum) }}" style="width: {{ round($count / $maxPriority * 100) }}%"></div>
+                            </div>
+                        </a>
+                    </li>
+                @endforeach
+            </ul>
+        </x-card>
+
+        <x-card :title="__('Active tickets by agent')" :padded="false" class="lg:col-span-3">
+            @if ($stats->byAgent === [])
+                <x-empty-state icon="users" :title="__('No assigned active tickets.')" />
+            @else
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>{{ __('Agent') }}</th>
+                            <th class="w-2/5"><span class="sr-only">{{ __('Load') }}</span></th>
+                            <th class="text-right">{{ __('Active') }}</th>
+                            <th class="text-right">{{ __('Breached') }}</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-ink-100">
+                        @foreach ($stats->byAgent as $row)
+                            <tr>
+                                <td class="whitespace-nowrap">
+                                    <a href="{{ route('tickets.index', ['scope' => 'active', 'assigned_agent_id' => $row['id']]) }}" class="inline-flex items-center gap-2 font-medium text-ink-800 hover:text-brand-700">
+                                        <x-avatar :name="$row['name']" size="sm" /> {{ $row['name'] }}
+                                    </a>
+                                </td>
+                                <td class="align-middle">
+                                    <div class="h-2 overflow-hidden rounded-full bg-ink-100" aria-hidden="true">
+                                        <div class="h-2 rounded-full bg-brand-500" style="width: {{ round($row['active'] / $maxAgent * 100) }}%"></div>
+                                    </div>
+                                </td>
+                                <td class="text-right tabular-nums text-ink-700">{{ $row['active'] }}</td>
+                                <td class="text-right tabular-nums">
+                                    @if ($row['breached'] > 0)
+                                        <span class="font-semibold text-rose-600">{{ $row['breached'] }}</span>
+                                    @else
+                                        <span class="text-ink-400">0</span>
+                                    @endif
+                                </td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            @endif
+        </x-card>
+    </div>
+
+    <x-card :title="__('Recent escalations')" :padded="false" class="mt-6">
+        @if ($stats->recentEscalations === [])
+            <x-empty-state icon="shield" :title="__('No escalations.')" :description="__('Tickets that breach their SLA show up here.')" />
+        @else
+            <ul class="divide-y divide-ink-100">
+                @foreach ($stats->recentEscalations as $escalation)
+                    <li class="flex flex-wrap items-center justify-between gap-3 px-5 py-3 text-sm">
+                        <div class="flex min-w-0 items-center gap-3">
+                            <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-rose-50 text-rose-600"><x-icon name="alert" class="h-4 w-4" /></span>
+                            <div class="min-w-0">
+                                <a href="{{ route('tickets.show', $escalation['ticket_number']) }}" class="font-medium text-ink-900 hover:text-brand-700">{{ $escalation['subject'] }}</a>
+                                <p class="text-xs text-ink-500"><span class="ticket-no">{{ $escalation['ticket_number'] }}</span> · {{ $escalation['agent'] ?? __('Unassigned') }}</p>
+                            </div>
+                        </div>
+                        <span class="text-xs text-ink-500">{{ $escalation['description'] }} · {{ BusinessTime::format(\Carbon\CarbonImmutable::parse($escalation['at'])) }}</span>
+                    </li>
+                @endforeach
+            </ul>
+        @endif
+    </x-card>
 </x-app-layout>

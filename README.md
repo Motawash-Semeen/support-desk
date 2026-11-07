@@ -1,6 +1,6 @@
 # Support Desk: Support Ticket & SLA Management System
 
-Laravel 12 · PHP 8.2+ · MySQL 8 · Redis (queue + cache in production) · Blade + Tailwind + Alpine (Breeze) · Pest
+Laravel 12 · PHP 8.2+ · MySQL 8 · Redis (queue + cache in production) · Blade + Tailwind + Alpine (custom design system, Breeze auth) · Pest
 
 Customers open tickets. Agents work them inside business-hours SLA deadlines that admins configure.
 
@@ -122,7 +122,7 @@ parallel suite against MySQL 8. See [docs/TESTING.md](docs/TESTING.md).
 ## Key decisions and assumptions
 
 The full reasoning, with alternatives and trade-offs for each, is in [docs/DECISIONS.md](docs/DECISIONS.md)
-(128 entries, grouped by area). The ones that shape the system:
+(129 entries, grouped by area). The ones that shape the system:
 
 **Architecture**
 - Business logic lives in single-purpose Actions (`app/Actions`) and Services (`app/Services`). Controllers only

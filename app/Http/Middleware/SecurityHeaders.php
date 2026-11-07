@@ -14,9 +14,9 @@ use Symfony\Component\HttpFoundation\Response;
  * per-request nonce (Vite::useCspNonce adds it to @vite tags; the two inline
  * Alpine helpers use Vite::cspNonce()). 'unsafe-eval' is required by the
  * standard Alpine.js build, which evaluates x-* expressions with Function().
- * Styles allow 'unsafe-inline' for Alpine's x-show/x-cloak style toggling and
- * Bunny Fonts (Breeze default). While `npm run dev` is running, the Vite dev
- * server origin is allowed too.
+ * Styles allow 'unsafe-inline' for Alpine's x-show/x-cloak style toggling.
+ * Fonts are self-hosted (bundled by Vite), so no third-party origin is
+ * allowed. While `npm run dev` is running, the Vite dev server origin is too.
  */
 class SecurityHeaders
 {
@@ -51,8 +51,8 @@ class SecurityHeaders
         return implode('; ', [
             "default-src 'self'",
             "script-src 'self' 'nonce-{$nonce}' 'unsafe-eval'".$dev,
-            "style-src 'self' 'unsafe-inline' https://fonts.bunny.net".$dev,
-            "font-src 'self' https://fonts.bunny.net data:",
+            "style-src 'self' 'unsafe-inline'".$dev,
+            "font-src 'self' data:".$dev,
             "img-src 'self' data:",
             "connect-src 'self'".($dev === '' ? '' : $dev.' '.str_replace('http', 'ws', trim($dev))),
             "object-src 'none'",

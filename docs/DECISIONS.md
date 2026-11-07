@@ -6,7 +6,7 @@ order in which decisions were made, not their importance. Superseded entries are
 
 | Area | Entries |
 |---|---|
-| [Foundation and stack](#foundation-and-stack) | D-001, D-002, D-003, D-004, D-005, D-006, D-007, D-008, D-011, D-012, D-013, D-015, D-043, D-126, D-127 |
+| [Foundation and stack](#foundation-and-stack) | D-001, D-002, D-003, D-004, D-005, D-006, D-007, D-008, D-011, D-012, D-013, D-015, D-043, D-126, D-127, D-129 |
 | [Database](#database) | D-016, D-017, D-018, D-019, D-020, D-021, D-022, D-023, D-024, D-025, D-027, D-028, D-030, D-031, D-055 |
 | [Authorization and security](#authorization-and-security) | D-026, D-032, D-033, D-034, D-035, D-036, D-037, D-038, D-039, D-040, D-041, D-042, D-051, D-120, D-122, D-123, D-124, D-125 |
 | [Tickets and lifecycle](#tickets-and-lifecycle) | D-044, D-045, D-046, D-029, D-047, D-048, D-049, D-052, D-053, D-054 |
@@ -115,6 +115,21 @@ order in which decisions were made, not their importance. Superseded entries are
 - **Options considered:** Leave limitations implicit; implement more enterprise features.
 - **Why this one:** The spec explicitly says not every enterprise scenario is needed. Reviewers reward clear reasoning about boundaries, and a known limitation with a stated path is a design decision rather than a hidden bug.
 - **Trade-off:** The document must be kept current as features land.
+
+### D-129 Own design system instead of the Breeze/Laravel defaults
+- **Decision:** The Breeze look is replaced throughout:
+  - the Laravel logo, Figtree, gray cards, uppercase buttons and top navigation;
+  - Laravel's `welcome`, error and pagination pages.
+
+  In their place is a small design system:
+  - a Tailwind theme (`brand` teal and `ink` slate, Inter and JetBrains Mono);
+  - component classes in `resources/css/app.css` (`btn`, `field-input`, `card`, `table`, `ticket-no` and others);
+  - Blade components (`icon`, `brand`, `card`, `badge` with status dots, `stat-card`, `empty-state`, `avatar`, `settings-section`).
+
+  On top of that sit a dark sidebar shell with a mobile drawer, a split-screen auth layout, a product landing page, custom 403/404/419/429/500/503 pages and custom pagination. The fonts are self-hosted through npm (`@fontsource-variable/inter`, `@fontsource/jetbrains-mono`) and bundled by Vite, so the CSP's `font-src` and `style-src` allow only `'self'`.
+- **Options considered:** Restyle Breeze in place; a UI kit (Flux, Filament or a Tailwind UI copy); keep Bunny Fonts and add its new CDN host (`cdn.jsdelivr.net`) to the CSP.
+- **Why this one:** One small set of classes and components keeps every page consistent and makes later pages cheap to build. No licence and no extra dependency are needed beyond two font packages. Self-hosted fonts remove a third-party request on every page view and keep the CSP strict. The rewrite also fixed a real bug: Breeze's logout links used inline `onclick=` handlers, which the nonce CSP (D-124) blocks, so logging out from the menu did not work; logout is now a plain submit button.
+- **Trade-off:** Every view was rewritten, so markup no longer matches Breeze upstream. Future Breeze updates to the auth views must be merged by hand.
 
 ## Database
 
