@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Admin\ErrorLogController;
 use App\Http\Controllers\Admin\SlaSettingsController;
 use App\Http\Controllers\Admin\TicketImportController;
 use App\Http\Controllers\AttachmentController;
@@ -81,6 +82,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
             Route::get('/{import}/status', 'status')->name('status');
             Route::get('/{import}/errors', 'errors')->name('errors');
             Route::post('/{import}/resume', 'resume')->name('resume');
+        });
+
+        // Error tracker (App\Services\ErrorTracking\ErrorRecorder feeds it).
+        Route::controller(ErrorLogController::class)->prefix('errors')->name('errors.')->group(function () {
+            Route::get('/', 'index')->name('index');
+            Route::post('/clear-resolved', 'clearResolved')->name('clear-resolved');
+            Route::get('/{errorLog}', 'show')->name('show');
+            Route::patch('/{errorLog}/resolve', 'resolve')->name('resolve');
+            Route::delete('/{errorLog}', 'destroy')->name('destroy');
         });
     });
 });

@@ -122,7 +122,7 @@ parallel suite against MySQL 8. See [docs/TESTING.md](docs/TESTING.md).
 ## Key decisions and assumptions
 
 The full reasoning, with alternatives and trade-offs for each, is in [docs/DECISIONS.md](docs/DECISIONS.md)
-(129 entries, grouped by area). The ones that shape the system:
+(130 entries, grouped by area). The ones that shape the system:
 
 **Architecture**
 - Business logic lives in single-purpose Actions (`app/Actions`) and Services (`app/Services`). Controllers only
@@ -246,6 +246,23 @@ rows download as a CSV report, and a failed import resumes after the last commit
 | `status` | no | Default `open`; `resolved` / `closed` also set the finished time |
 | `assigned_agent_email` | no | Must be an agent |
 | `created_at` | no | ISO 8601, for example `2026-11-01T10:00:00+06:00` |
+
+### Error log and error pages
+
+Every error is written to `storage/logs/laravel.log` **and** to the admin error log at **/admin/errors**
+(sidebar → Administration → Error log). What gets stored:
+
+- every reported exception and every `Log::error()` or higher (`ERROR_TRACKER_LEVEL`);
+- every 4xx response except validation (422) and assignment conflicts (409).
+
+Identical errors are grouped, with a count, first/last seen and the latest request, user, stack trace and context.
+Secrets in the context and URL are redacted before storage. Admins can filter, mark resolved (an error reopens
+automatically if it happens again), delete, or clear resolved entries. Old entries are pruned daily.
+
+Visitors never see internals: errors render custom pages (403, 404, 419, 429, 500, 503, plus `4xx`/`5xx`
+fallbacks), and server errors show a **reference number** that matches the entry in the error log. Locally,
+`APP_DEBUG=true` shows Laravel's debug page for 500 errors instead; set `APP_DEBUG=false` to see the production
+page.
 
 ### SLA maintenance
 

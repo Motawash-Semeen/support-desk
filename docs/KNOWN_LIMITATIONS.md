@@ -18,6 +18,7 @@ it would take to remove it.
 | **No customer-facing API** | JSON exists for the ticket page (content negotiation) but there are no API tokens. | Sanctum tokens plus the existing API Resources and policies. |
 | **Single organisation** | No multi-tenancy. | `organization_id` on users and tickets, with a global scope in `visibleTo()`. |
 | **Email in only through the web form** | Customers cannot reply by email. | An inbound mail webhook (Mailgun or Postmark) mapped onto `AddReply` using a reply-to token. |
+| **Error tracker has no alerting** | New errors appear at `/admin/errors` and as a dashboard banner, but nobody is emailed or paged. | Notify admins on the first occurrence of a new fingerprint (a queued notification from `ErrorRecorder`), or ship logs to Sentry/Flare and keep the in-app page for triage. |
 | **No user-management screen** | Staff accounts (agents, admins) and agent categories come from the seeder or tinker; roles are deliberately not fillable from any form. | An admin-only `UserController` with a FormRequest and an Action that sets `role` / categories through `forceFill`, plus policy tests. |
 | **No 2FA, no SSO** | Password plus email verification only. | Fortify 2FA for staff, Socialite or SAML for SSO. |
 

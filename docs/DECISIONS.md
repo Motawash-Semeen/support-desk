@@ -6,7 +6,7 @@ order in which decisions were made, not their importance. Superseded entries are
 
 | Area | Entries |
 |---|---|
-| [Foundation and stack](#foundation-and-stack) | D-001, D-002, D-003, D-004, D-005, D-006, D-007, D-008, D-011, D-012, D-013, D-015, D-043, D-126, D-127, D-129 |
+| [Foundation and stack](#foundation-and-stack) | D-001, D-002, D-003, D-004, D-005, D-006, D-007, D-008, D-011, D-012, D-013, D-015, D-043, D-126, D-127, D-129, D-130 |
 | [Database](#database) | D-016, D-017, D-018, D-019, D-020, D-021, D-022, D-023, D-024, D-025, D-027, D-028, D-030, D-031, D-055 |
 | [Authorization and security](#authorization-and-security) | D-026, D-032, D-033, D-034, D-035, D-036, D-037, D-038, D-039, D-040, D-041, D-042, D-051, D-120, D-122, D-123, D-124, D-125 |
 | [Tickets and lifecycle](#tickets-and-lifecycle) | D-044, D-045, D-046, D-029, D-047, D-048, D-049, D-052, D-053, D-054 |
@@ -130,6 +130,23 @@ order in which decisions were made, not their importance. Superseded entries are
 - **Options considered:** Restyle Breeze in place; a UI kit (Flux, Filament or a Tailwind UI copy); keep Bunny Fonts and add its new CDN host (`cdn.jsdelivr.net`) to the CSP.
 - **Why this one:** One small set of classes and components keeps every page consistent and makes later pages cheap to build. No licence and no extra dependency are needed beyond two font packages. Self-hosted fonts remove a third-party request on every page view and keep the CSP strict. The rewrite also fixed a real bug: Breeze's logout links used inline `onclick=` handlers, which the nonce CSP (D-124) blocks, so logging out from the menu did not work; logout is now a plain submit button.
 - **Trade-off:** Every view was rewritten, so markup no longer matches Breeze upstream. Future Breeze updates to the auth views must be merged by hand.
+
+### D-130 In-app error tracker fed by the logger
+- **Decision:** Every error is stored in an `error_logs` table and shown to admins at `/admin/errors`. There are two feeds:
+  - a Monolog handler (`App\Logging\ErrorTrackerHandler`, channel `tracker`), always part of the default `stack`, which stores every log entry at `ERROR_TRACKER_LEVEL` (default `error`) or above. This includes every exception Laravel reports and every explicit `Log::error()` (failed notifications, failed imports and the rest).
+  - a global middleware (`TrackHttpErrors`) that stores 4xx responses, which Laravel never reports. 409 and 422 are normal outcomes, and 404s for files browsers probe on their own (`favicon.ico`, `robots.txt` and similar) are noise, so neither is stored.
+
+  How `ErrorRecorder` stores them:
+  - **Grouping:** errors are grouped by fingerprint (exception class + file + line, the log message, or the HTTP status) with an occurrence counter, first/last seen, and the details of the latest occurrence: URL, method, user, IP, trace and redacted context.
+  - **Recurrence:** a resolved error that happens again is reopened automatically.
+  - **Isolation:** it writes through its own database connection, so an error inside a transaction that then rolls back is still kept.
+  - **Safety:** it never throws and never logs itself.
+  - **Admin page:** filters (open/resolved/all, level, source, search), a detail page with stack trace and context, resolve/reopen, delete and "clear resolved", a sidebar badge, and a dashboard banner.
+  - **Error pages:** the custom 403/404/419/429/500/503 pages, plus `4xx`/`5xx` fallbacks for every other status. Server-error pages show the entry's reference number, so a user can quote it and the admin can find it.
+  - **Retention:** old rows are pruned daily (`model:prune`).
+- **Options considered:** Sentry, Flare or Bugsnag (external SaaS, an account and a data-processing agreement); Laravel Telescope (a development tool that records far more than errors, and is not meant to run for everyone in production); a log-file viewer package (reads only the file, cannot group or resolve, and ships its own front end that needs CSP exceptions).
+- **Why this one:** It meets "log every error and show it to the admin" with no external service or package, in the app's own design and authorization model. Grouping keeps the list readable during an incident instead of showing thousands of identical lines. The file log remains the complete raw record.
+- **Trade-off:** No alerting (email or Slack) on new errors yet, and no cross-service tracing. KNOWN_LIMITATIONS lists the upgrade path, which is to ship errors to a hosted tracker. An error storm costs one upsert per occurrence on the logs connection.
 
 ## Database
 

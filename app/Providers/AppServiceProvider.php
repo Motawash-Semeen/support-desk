@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Models\ErrorLog;
 use App\Models\Ticket;
 use App\Models\User;
 use App\Services\Assignment\AssignmentStrategy;
@@ -98,6 +99,7 @@ class AppServiceProvider extends ServiceProvider
     {
         Gate::define('view-dashboard', fn (User $user): bool => $user->isStaff());
         Gate::define('manage-sla-settings', fn (User $user): bool => $user->isAdmin());
+        Gate::define('view-error-log', fn (User $user): bool => $user->isAdmin());
         Gate::define('view-unassigned-queue', fn (User $user): bool => $user->isStaff());
         Gate::define('search-customers', fn (User $user): bool => $user->isStaff());
         Gate::define('update-availability', fn (User $user): bool => $user->isAgent());
@@ -119,6 +121,13 @@ class AppServiceProvider extends ServiceProvider
             }
 
             $view->with('unreadNotifications', (int) $request->attributes->get('unread_notifications', 0));
+
+            // Open-error badge for admins only (one indexed COUNT, memoised the same way).
+            if ($user !== null && $user->isAdmin() && ! $request->attributes->has('open_errors')) {
+                $request->attributes->set('open_errors', ErrorLog::query()->open()->count());
+            }
+
+            $view->with('openErrors', (int) $request->attributes->get('open_errors', 0));
         });
     }
 

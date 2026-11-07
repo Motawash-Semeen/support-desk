@@ -39,3 +39,17 @@ test('users can logout', function () {
     $this->assertGuest();
     $response->assertRedirect('/');
 });
+
+test('the sidebar logout control is a real form button that logs the user out', function () {
+    $user = User::factory()->create();
+
+    $html = $this->actingAs($user)->get(route('tickets.index'))->assertOk()->getContent();
+
+    // A plain POST form with a submit button: inline onclick handlers are blocked by the CSP.
+    expect($html)->toMatch('#<form method="POST" action="'.preg_quote(route('logout'), '#').'">\s*<input type="hidden" name="_token"[^>]*>\s*<button type="submit"#')
+        ->and($html)->not->toContain('onclick=');
+
+    $this->post(route('logout'))->assertRedirect('/');
+    $this->assertGuest();
+    $this->get(route('tickets.index'))->assertRedirect(route('login'));
+});

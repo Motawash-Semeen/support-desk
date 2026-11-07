@@ -1,5 +1,6 @@
 <?php
 
+use App\Logging\ErrorTrackerHandler;
 use Monolog\Handler\NullHandler;
 use Monolog\Handler\StreamHandler;
 use Monolog\Handler\SyslogUdpHandler;
@@ -52,10 +53,18 @@ return [
 
     'channels' => [
 
+        // The file channel(s) from LOG_STACK plus the database-backed error
+        // tracker, so every error is both in the log file and in /admin/errors.
         'stack' => [
             'driver' => 'stack',
-            'channels' => explode(',', (string) env('LOG_STACK', 'single')),
+            'channels' => array_values(array_unique([...explode(',', (string) env('LOG_STACK', 'single')), 'tracker'])),
             'ignore_exceptions' => false,
+        ],
+
+        'tracker' => [
+            'driver' => 'monolog',
+            'handler' => ErrorTrackerHandler::class,
+            'level' => env('ERROR_TRACKER_LEVEL', 'error'),
         ],
 
         'single' => [

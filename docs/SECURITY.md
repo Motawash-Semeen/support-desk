@@ -23,6 +23,7 @@ every push.
 | 16 | Debug off in production | ✅ | `.env.example` documents `APP_ENV=production` / `APP_DEBUG=false`. Database errors render a friendly page with a reference id, while context is logged (`bootstrap/app.php`). Strict Eloquent is disabled in production so that a missed eager load degrades rather than fails. |
 | 17 | Queued work cannot leak across tenants | ✅ | Notifications resolve recipients from the database at send time (`ResolvesRecipients`); jobs carry ids, not models, and re-check state under a guard (`EscalateTicket`, `AutoAssignTicket`). |
 | 18 | Static analysis | ✅ | Larastan level 5, no baseline (`phpstan.neon`), in CI. |
+| 19 | Every error logged and visible to admins | ✅ | The `tracker` log channel, which is part of the default stack, stores every log entry at `error` or above, including every reported exception. `TrackHttpErrors` stores 4xx responses grouped by status. Admins review them at `/admin/errors` (`view-error-log` gate, admin-only, covered by the route audit). Context keys that look secret (password, token, cookie, api_key and similar) and secret query parameters are redacted before storage. Visitors see only a custom error page with a reference number, never the internals. Tests: `ErrorTracking/*`. |
 
 ## Known gaps (accepted)
 

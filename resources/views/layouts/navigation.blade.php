@@ -45,7 +45,7 @@
             </a>
         </div>
 
-        @if ($user->can('manage-sla-settings') || $user->can('import', App\Models\Ticket::class))
+        @if ($user->can('manage-sla-settings') || $user->can('import', App\Models\Ticket::class) || $user->can('view-error-log'))
             <div class="space-y-1">
                 <p class="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-ink-500">{{ __('Administration') }}</p>
                 @can('manage-sla-settings')
@@ -53,6 +53,9 @@
                 @endcan
                 @can('import', App\Models\Ticket::class)
                     <x-nav-link :href="route('admin.imports.index')" :active="request()->routeIs('admin.imports.*')" icon="upload">{{ __('Import') }}</x-nav-link>
+                @endcan
+                @can('view-error-log')
+                    <x-nav-link :href="route('admin.errors.index')" :active="request()->routeIs('admin.errors.*')" icon="alert" :count="$openErrors">{{ __('Error log') }}</x-nav-link>
                 @endcan
             </div>
         @endif

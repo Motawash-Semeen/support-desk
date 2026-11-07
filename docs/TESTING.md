@@ -72,6 +72,8 @@ tests/
     Dashboard/     dashboard numbers and query budget
     Import/        10,000-row import, resume, replay, HTTP endpoints
     Activity/      append-only audit trail and timeline
+    ErrorTracking/ every error recorded (exceptions, logged errors, 4xx), grouping, reopen, redaction,
+                   custom 404/4xx/500 pages with reference, admin error log, pruning
     EndToEnd/      the single un-faked chain
     Database/      schema, indexes, relationships, scopes, seeders, N+1 guards
     Bootstrap/     configuration, strict Eloquent, welcome page, page smoke test (every page × every role,

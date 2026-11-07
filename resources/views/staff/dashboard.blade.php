@@ -29,6 +29,14 @@
         <a href="{{ route('tickets.index') }}" class="btn btn-primary"><x-icon name="ticket" class="h-4 w-4" /> {{ __('All tickets') }}</a>
     </x-slot>
 
+    @if ($openErrors)
+        <a href="{{ route('admin.errors.index') }}" class="mb-6 flex items-center gap-3 rounded-xl bg-rose-50 px-4 py-3 text-sm text-rose-800 ring-1 ring-inset ring-rose-200 hover:bg-rose-100">
+            <x-icon name="alert" class="h-5 w-5 shrink-0" />
+            <span class="flex-1">{{ trans_choice('{1} 1 application error needs attention.|[2,*] :count application errors need attention.', $openErrors, ['count' => $openErrors]) }}</span>
+            <span class="inline-flex items-center gap-1 font-semibold">{{ __('Open error log') }} <x-icon name="arrow-right" class="h-4 w-4" /></span>
+        </a>
+    @endif
+
     <div class="grid grid-cols-2 gap-4 lg:grid-cols-4">
         @foreach ($cards as $card)
             <x-stat-card :label="$card['label']" :value="$card['value']" :tone="$card['tone']" :icon="$card['icon']" :href="route('tickets.index', $card['query'])" />

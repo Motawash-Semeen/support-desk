@@ -243,7 +243,11 @@ Indexes and their justification: [PERFORMANCE.md](PERFORMANCE.md) and DECISIONS 
   after commit, so nothing fires for a rollback.
 - **Errors:** exceptions are never swallowed. They are logged with ticket and user context
   (`bootstrap/app.php` adds context to every report). Domain errors (`InvalidTicketTransition`,
-  `AssignmentConflict`, `ReplyNotAllowed`) render friendly 409/422 responses.
+  `AssignmentConflict`, `ReplyNotAllowed`) render friendly 409/422 responses. Every log entry at error
+  level or above, which includes every reported exception, also goes to the `tracker` channel
+  (`ErrorTrackerHandler` → `ErrorRecorder` → `error_logs`). `TrackHttpErrors` adds 4xx responses, and admins
+  review everything, grouped, at `/admin/errors`. Visitors get custom error pages with a reference number
+  (D-130).
 - **Strict Eloquent** outside production: lazy loading, silently discarded attributes and missing attributes throw,
   so an N+1 query fails the test suite.
 - **Queues:** `default` (assignment, escalation, in-app notifications), `notifications` (mail),
