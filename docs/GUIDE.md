@@ -39,7 +39,6 @@ app/
                                gates, policies, rate limits, {ticket} route binding, strict Eloquent
   Support/                     small shared helpers: BusinessTime (date display), FileSize, DeferredPagination
   View/Components/             <x-app-layout>, <x-guest-layout>
-  Console/Commands/            perf:explain (dev only, see PERFORMANCE.md)
 
 bootstrap/app.php              middleware, exception handling, module listener/command discovery
 config/support.php             ALL business settings (SLA defaults, business hours, attachments, assignment, import)

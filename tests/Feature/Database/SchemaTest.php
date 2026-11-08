@@ -24,7 +24,7 @@ it('indexes the tickets table for every list, filter and scanner query', functio
     expect($indexes['ticket_number']['unique'])->toBeTrue()
         ->and($indexes['source,external_reference']['unique'])->toBeTrue();
 
-    // Covering indexes measured on 100k tickets (docs/PERFORMANCE.md, migration 2026_11_07_100003).
+    // Covering indexes measured on 100k tickets (docs/PERFORMANCE.md, D-128).
     foreach ([
         'status,due_at,breached_notified_at',
         'assigned_agent_id,status,due_at,priority,is_escalated,sla_warning_at,resolved_at',

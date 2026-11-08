@@ -40,16 +40,21 @@ return new class extends Migration
             $table->string('source', 20)->default('web');
             $table->timestamps();
 
-            // Each index is justified by the query it serves in docs/DECISIONS.md (D-024).
-            $table->index(['status', 'due_at']);
-            $table->index(['assigned_agent_id', 'status']);
-            $table->index(['created_by', 'created_at']);
-            $table->index(['priority', 'status']);
-            $table->index(['category_id', 'status']);
-            $table->index(['status', 'sla_warning_at']);
-            $table->index(['status', 'is_escalated', 'due_at']);
-            $table->index('created_at');
-            $table->unique(['source', 'external_reference']);
+            // Each index covers the queries it serves, so they are answered from the
+            // index alone (measured on 100k tickets: docs/PERFORMANCE.md, D-024, D-128).
+            // Laravel's generated name for the two long ones would pass MySQL's 64-character limit.
+            $table->index(['status', 'due_at', 'breached_notified_at']);                    // active lists by due date; sla:scan breach pass
+            $table->index(['status', 'sla_warning_at', 'due_at', 'warning_notified_at']);   // "at risk" filter; sla:scan warning pass
+            $table->index(['status', 'resolved_at']);                                       // auto-close of resolved tickets
+            $table->index(['status', 'is_escalated', 'escalation_level', 'due_at']);        // escalated filter; sla:scan level-2 pass
+            $table->index(['status', 'priority', 'assigned_agent_id', 'is_escalated', 'due_at', 'sla_warning_at'], 'tickets_dashboard_cover_index');
+            $table->index(['assigned_agent_id', 'status', 'due_at', 'priority', 'is_escalated', 'sla_warning_at', 'resolved_at'], 'tickets_agent_cover_index');
+            $table->index(['created_by', 'created_at', 'status']);                          // a customer's own tickets
+            $table->index(['priority', 'status', 'due_at']);                                // priority filter
+            $table->index(['category_id', 'status', 'due_at']);                             // category filter
+            $table->index(['created_at', 'status']);                                        // date range; newest-first lists
+            $table->index('updated_at');                                                    // "last update" sort
+            $table->unique(['source', 'external_reference']);                               // import duplicates
 
             // FULLTEXT exists only on MySQL/MariaDB; SQLite test runs fall back to LIKE.
             if (in_array(Schema::getConnection()->getDriverName(), ['mysql', 'mariadb'], true)) {

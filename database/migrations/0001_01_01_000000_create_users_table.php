@@ -27,6 +27,8 @@ return new class extends Migration
             // Leftmost prefix serves role lookups (WHERE role = ?); the full index serves
             // auto-assignment: WHERE role = 'agent' AND is_available = 1 ORDER BY last_assigned_at.
             $table->index(['role', 'is_available', 'last_assigned_at'], 'users_role_available_last_assigned_index');
+            // Agent dropdowns and the customer autocomplete: WHERE role = ? ORDER BY name.
+            $table->index(['role', 'name']);
         });
 
         Schema::create('password_reset_tokens', function (Blueprint $table) {

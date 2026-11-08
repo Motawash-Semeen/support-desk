@@ -7,10 +7,10 @@ than assumptions about indexes.
 
 | | |
 |---|---|
-| Data | `database/seeders/PerformanceSeeder.php` on a throwaway database: **100,000 tickets** over two years (70% resolved or closed; of the active ones about 8% breached and 10% approaching), **300,000 replies** (15% internal notes), **50,000 attachment rows**, **~400,000 activities**, 5,000 customers and 40 agents. Chunked multi-row INSERTs, deterministic random seed. |
+| Data | A bulk seeder on a throwaway database: **100,000 tickets** over two years (70% resolved or closed; of the active ones about 8% breached and 10% approaching), **300,000 replies** (15% internal notes), **50,000 attachment rows**, **~400,000 activities**, 5,000 customers and 40 agents. Chunked multi-row INSERTs, deterministic random seed. |
 | Engine | MariaDB 10.4 (XAMPP, 16 MB buffer pool), the reference development server. Production and CI run MySQL 8, whose optimizer makes the same choices for these query shapes. |
-| Tool | `php artisan perf:explain` (`app/Console/Commands/ExplainQueries.php`). It runs each page through the **real HTTP kernel** (or the real Artisan command), captures every SELECT, and runs `ANALYZE` on it (MariaDB: estimated **and actual** rows, plus filtered %). Framework bookkeeping (sessions, cache) is excluded. |
-| Reproduce | `DB_DATABASE=support_desk_perf php artisan migrate:fresh --force && DB_DATABASE=support_desk_perf php artisan db:seed --class=PerformanceSeeder --force && DB_DATABASE=support_desk_perf php artisan perf:explain` |
+| Tool | A `perf:explain` command. It ran each page through the **real HTTP kernel** (or the real Artisan command), captured every SELECT, and ran `ANALYZE` on it (MariaDB: estimated **and actual** rows, plus filtered %). Framework bookkeeping (sessions, cache) is excluded. |
+| Reproduce | Both tools were removed to keep the app small (D-137). They are in git history up to commit `9edc811` (`database/seeders/PerformanceSeeder.php`, `app/Console/Commands/ExplainQueries.php`). |
 
 "Rows (actual)" is what the engine read for that step (`r_rows` of `ANALYZE`). A good plan reads close to what it
 returns: about 15–16 rows for a list page.
@@ -49,8 +49,8 @@ Total time of each scenario's application queries during the real request, on a 
 
 ## What the measurement found, and what changed
 
-Every row below was a real finding on the 100k data set. The fixes are in migration
-`2026_11_07_100003_widen_tickets_list_indexes.php`, `App\Support\DeferredPagination`,
+Every row below was a real finding on the 100k data set. The fixes are the indexes in the
+tickets and notifications migrations, `App\Support\DeferredPagination`,
 `DashboardStatsService::counters()` and `ScanSla::dispatchFor()` (DECISIONS D-121, D-128).
 
 | Finding (before) | Cause | Fix |

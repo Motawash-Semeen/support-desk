@@ -128,16 +128,6 @@ return [
     ],
 
     /*
-    | Volumes for database/seeders/PerformanceSeeder (EXPLAIN measurements only;
-    | never part of the normal seed). See docs/PERFORMANCE.md.
-    */
-    'performance' => [
-        'tickets' => (int) env('PERF_TICKETS', 100000),
-        'replies' => (int) env('PERF_REPLIES', 300000),
-        'attachments' => (int) env('PERF_ATTACHMENTS', 50000),
-    ],
-
-    /*
     | Requests per minute per user (per IP for guests). Exceeding a limit returns
     | 429 Too Many Requests. Named limiters are registered in AppServiceProvider.
     */

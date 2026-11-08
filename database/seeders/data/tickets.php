@@ -146,7 +146,7 @@ return [
         'description' => "The dashboard says our October revenue is BDT 18.2 lakh, but the monthly report says BDT 17.6 lakh. Which one is right?\n\nPriya",
     ],
     [
-        'customer' => 9, 'category' => 'technical-support', 'priority' => 'high', 'flow' => 'reopened', 'ago' => 60,
+        'customer' => 9, 'category' => 'technical-support', 'priority' => 'medium', 'flow' => 'reopened', 'ago' => 60,
         'subject' => 'Product images not loading in the online catalogue',
         'description' => "Since this morning, our online catalogue shows grey boxes instead of product photos. Customers are messaging us about it.\n\nMehnaz Rahman\nCraftNest",
         'a1' => 'Hi Mehnaz, sorry about this. One of our image servers had a configuration problem this morning that affected some catalogues. It has been fixed, and the images should load again after a refresh.',
@@ -191,7 +191,7 @@ return [
         'a2' => 'The fix was released this morning, and the date picker now opens on the current month. Thanks again for reporting it!',
     ],
     [
-        'customer' => 13, 'category' => 'bug-report', 'priority' => 'high', 'flow' => 'working', 'ago' => 7, 'agent' => 4, 'reassign' => 1,
+        'customer' => 13, 'category' => 'bug-report', 'priority' => 'medium', 'flow' => 'working', 'ago' => 7, 'agent' => 4, 'reassign' => 1,
         'subject' => 'Fee receipts show the wrong student name',
         'description' => "Two parents told us the receipt they received has another student's name, although the amount and invoice number are right. This is a privacy problem for us.\n\nAyesha Siddika",
         'a1' => "Hi Ayesha, thank you for telling us right away. I'm treating this as a priority. Could you send the invoice numbers of the two receipts? Please don't forward the receipts themselves.",

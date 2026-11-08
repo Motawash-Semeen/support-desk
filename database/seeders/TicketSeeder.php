@@ -126,9 +126,16 @@ class TicketSeeder extends Seeder
         }
 
         $slaPriority = TicketPriority::from($sample['raise'] ?? $sample['priority']);
-        $created = $now->subMinutes((int) round($sample['ago'] * 60));
+        $hint = $now->subMinutes((int) round($sample['ago'] * 60));
 
-        for ($try = 0; $try < 3000; $try++, $created = $created->subMinutes(23)) {
+        // Try moments around the hint, alternating earlier and later (never in the future).
+        for ($try = 0; $try < 6000; $try++) {
+            $offset = intdiv($try + 1, 2) * 23 * ($try % 2 === 0 ? 1 : -1);
+            $created = $hint->addMinutes($offset);
+            if ($created->greaterThanOrEqualTo($now)) {
+                continue;
+            }
+
             $events = $this->timeline($i, $sample, $created, $calendar);
 
             if ($this->fits($sample['flow'], $events, $slaPriority, $now)) {
@@ -233,7 +240,7 @@ class TicketSeeder extends Seeder
             'new' => $sla->dueAt->greaterThan($now),
             'stale' => $sla->dueAt->lessThan($now->subDay()),
             'assigned', 'working', 'waiting' => $sla->warningAt->greaterThan($now),
-            'approaching' => $sla->warningAt->lessThanOrEqualTo($now) && $sla->dueAt->greaterThan($now->addMinutes(30)),
+            'approaching' => $sla->warningAt->lessThanOrEqualTo($now) && $sla->dueAt->greaterThan($now->addMinutes(10)),
             'breached' => $sla->dueAt->lessThan($now->subHours(3)) && $sla->dueAt->greaterThan($now->subDays(3)),
             'resolved' => $recentlyResolved(),
             'late' => $recentlyResolved() && $at('resolve')->greaterThan($sla->dueAt),

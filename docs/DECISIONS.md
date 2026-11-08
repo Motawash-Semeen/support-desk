@@ -6,7 +6,7 @@ order in which decisions were made, not their importance. Superseded entries are
 
 | Area | Entries |
 |---|---|
-| [Foundation and stack](#foundation-and-stack) | D-001, D-002, D-003, D-004, D-005, D-006, D-007, D-008, D-011, D-012, D-013, D-015, D-043, D-126, D-127, D-129, D-130, D-131, D-132, D-133, D-134, D-135, D-136 |
+| [Foundation and stack](#foundation-and-stack) | D-001, D-002, D-003, D-004, D-005, D-006, D-007, D-008, D-011, D-012, D-013, D-015, D-043, D-126, D-127, D-129, D-130, D-131, D-132, D-133, D-134, D-135, D-136, D-137 |
 | [Database](#database) | D-016, D-017, D-018, D-019, D-020, D-021, D-022, D-023, D-024, D-025, D-027, D-028, D-030, D-031, D-055 |
 | [Authorization and security](#authorization-and-security) | D-026, D-032, D-033, D-034, D-035, D-036, D-037, D-038, D-039, D-040, D-041, D-042, D-051, D-120, D-122, D-123, D-124, D-125 |
 | [Tickets and lifecycle](#tickets-and-lifecycle) | D-044, D-045, D-046, D-029, D-047, D-048, D-049, D-052, D-053, D-054 |
@@ -230,6 +230,14 @@ order in which decisions were made, not their importance. Superseded entries are
 - **Options considered:** Keep the old bar with small fixes; a sidebar of filters; auto-apply on every change.
 - **Why this one:** Requested ("filter system design is not good"). The old bar had two scope controls that could contradict each other, two unlabelled sort selects, statuses that made no sense for the tab, and no view of what was applied while the panel was closed. Multi-select chips still need an explicit Apply, so the panel keeps an Apply button, while single choices (sort, direction, tabs, chip removal) apply immediately.
 - **Trade-off:** A small Alpine snippet disables empty fields on submit. Without JavaScript, the form still works but sends the empty fields.
+
+### D-137 One migration per table; performance tooling removed
+- **Decision:** Two simplifications.
+  - **Migrations:** the five follow-up migrations were folded into the migrations that create their tables. The index changes from D-128 now sit in the tickets and notifications migrations, the users `(role, name)` index sits in the users migration, and each tickets index has a one-line comment saying which query it serves. The activity-type rename was dropped, because it only rewrote rows from an older version. The resulting schema is identical.
+  - **Performance tooling:** `perf:explain` (`ExplainQueries`), the 100k-ticket `PerformanceSeeder` and the `support.performance` settings were removed. `docs/PERFORMANCE.md` keeps the measured results and says where the tools live in git history.
+- **Options considered:** Keep the migration history; keep the tooling for future measurements.
+- **Why this one:** Requested ("remove unnecessary code … simplify"). The app has never been deployed, so there is no production database whose migration history must be preserved. One migration per table is far easier to read than a create followed by an 88-line widen-and-drop. The tooling was development-only and about 550 lines.
+- **Trade-off:** An existing local database must be rebuilt with `php artisan migrate:fresh --seed`. Repeating the 100k measurements means restoring the two files from git history (commit `9edc811`).
 
 ## Database
 
@@ -839,12 +847,14 @@ Verified with `EXPLAIN` on the seeded database: the breach scan uses `tickets_st
 - **Trade-off:** 200 rows say little about plans at volume, hence D-121.
 
 ### D-121 Measure with EXPLAIN on realistic volume instead of assuming indexes help
+- *(Amended by D-137: the seeder and command were removed after the measurements; they remain in git history.)*
 - **Decision:** A bulk `PerformanceSeeder` (100k tickets, 300k replies, 50k attachments, ~400k activities) and a `perf:explain` command that drives every list, filter, sort, search, dashboard, ticket page and `sla:scan` through the real HTTP kernel or Artisan command. It captures each SELECT and runs `ANALYZE` on it (estimated and actual rows), with the results in `docs/PERFORMANCE.md`. Index changes are made only where the measurement shows a full scan or a large read for a small result.
 - **Options considered:** Reasoning about indexes from the schema (what D-024 did); EXPLAIN on the 200-row demo data (D-103), where every plan looks fine; an APM tool in production only.
 - **Why this one:** The spec talks about millions of records. Evidence beats claims, and the measured plans differ from what the schema suggests: on a small table the optimizer picks whatever is cheapest, and at volume the real access paths show. PERFORMANCE.md is a ready-made answer for reviewers, and the command re-runs after any change.
 - **Trade-off:** The numbers come from MariaDB 10.4 with a 16 MB buffer pool. Absolute timings are pessimistic; the access paths and rows read are what carry over to MySQL 8.
 
 ### D-128 Covering indexes, deferred-join pagination and index-driven scans
+- *(Amended by D-137: these indexes are now defined directly in the tickets, notifications and users create migrations; the separate migrations named below no longer exist.)*
 - **Decision:** Changes made only where the 100k-ticket measurement (D-121, docs/PERFORMANCE.md) showed a full scan or thousands of row reads for a small result:
   1. **Widened indexes** (migration `2026_11_07_100003`), each keeping its leading columns:
      - `created_at` → `(created_at, status)`;

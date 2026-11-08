@@ -18,6 +18,11 @@ return new class extends Migration
             $table->text('data');
             $table->timestamp('read_at')->nullable();
             $table->timestamps();
+
+            // The bell's unread count, the inbox (newest first) and pruning of read ones.
+            $table->index(['notifiable_type', 'notifiable_id', 'read_at'], 'notifications_notifiable_read_at_index');
+            $table->index(['notifiable_type', 'notifiable_id', 'created_at'], 'notifications_notifiable_created_at_index');
+            $table->index('read_at');
         });
     }
 
