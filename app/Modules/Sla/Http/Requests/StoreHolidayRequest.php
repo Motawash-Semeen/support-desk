@@ -6,11 +6,6 @@ use Illuminate\Foundation\Http\FormRequest;
 
 class StoreHolidayRequest extends FormRequest
 {
-    public function authorize(): bool
-    {
-        return $this->user()->can('manage-sla-settings');
-    }
-
     public function rules(): array
     {
         return [

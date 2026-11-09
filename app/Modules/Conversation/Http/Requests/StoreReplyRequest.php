@@ -20,7 +20,7 @@ class StoreReplyRequest extends FormRequest
     /** The policy's full answer, so a ticket the user may not see stays a 404. */
     public function authorize(): Response
     {
-        $ability = $this->replyType() === ReplyType::InternalNote ? 'addInternalNote' : 'reply';
+        $ability = $this->replyType() === ReplyType::InternalNote ? 'work' : 'reply';
 
         return Gate::forUser($this->user())->inspect($ability, $this->ticket());
     }

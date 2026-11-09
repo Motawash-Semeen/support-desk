@@ -6,11 +6,6 @@ use Illuminate\Foundation\Http\FormRequest;
 
 class CustomerSearchRequest extends FormRequest
 {
-    public function authorize(): bool
-    {
-        return $this->user()->can('search-customers');
-    }
-
     public function rules(): array
     {
         return [

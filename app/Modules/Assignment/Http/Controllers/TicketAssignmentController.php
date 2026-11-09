@@ -11,7 +11,6 @@ use App\Modules\Assignment\Exceptions\AssignmentConflict;
 use App\Modules\Assignment\Http\Requests\AssignTicketRequest;
 use App\Modules\Tickets\Models\Ticket;
 use App\Support\DeferredPagination;
-use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
@@ -24,8 +23,6 @@ class TicketAssignmentController extends Controller
 {
     public function queue(Request $request): View
     {
-        $this->authorize('view-unassigned-queue');
-
         // Deferred join (see DeferredPagination): ids from the index, rows for the page only.
         $tickets = DeferredPagination::paginate(
             Ticket::query()->active()->unassigned()->orderBy('due_at')->orderBy('id'),
@@ -36,7 +33,7 @@ class TicketAssignmentController extends Controller
         return view('Assignment::unassigned', ['tickets' => $tickets]);
     }
 
-    public function accept(Request $request, Ticket $ticket, AcceptTicket $acceptTicket): RedirectResponse|JsonResponse
+    public function accept(Request $request, Ticket $ticket, AcceptTicket $acceptTicket): RedirectResponse
     {
         $this->authorize('accept', $ticket);
 
@@ -44,17 +41,12 @@ class TicketAssignmentController extends Controller
             throw AssignmentConflict::ticketTaken($ticket->ticket_number);
         }
 
-        if ($request->expectsJson()) {
-            return response()->json(['message' => __('Ticket accepted.'), 'ticket_number' => $ticket->ticket_number]);
-        }
-
         return redirect()->route('tickets.show', $ticket)->with('status', __('You accepted :number.', ['number' => $ticket->ticket_number]));
     }
 
+    /** AssignTicketRequest has already checked `assign`. */
     public function assign(AssignTicketRequest $request, Ticket $ticket, AssignTicket $assignTicket): RedirectResponse
     {
-        $this->authorize('assign', $ticket);
-
         $agent = User::query()->findOrFail($request->validated('agent_id'));
 
         $assignTicket($request->user(), $ticket, $agent, $request->expectedAgentId());

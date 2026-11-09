@@ -3,7 +3,9 @@
 namespace App\Modules\Assignment\Http\Requests;
 
 use App\Enums\Role;
+use Illuminate\Auth\Access\Response;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 
 /**
@@ -13,9 +15,10 @@ use Illuminate\Validation\Rule;
  */
 class AssignTicketRequest extends FormRequest
 {
-    public function authorize(): bool
+    /** The policy's full answer, so a ticket the user may not see stays a 404. */
+    public function authorize(): Response
     {
-        return $this->user()->can('assign', $this->route('ticket'));
+        return Gate::forUser($this->user())->inspect('assign', $this->route('ticket'));
     }
 
     public function rules(): array

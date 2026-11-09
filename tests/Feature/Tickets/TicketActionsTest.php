@@ -6,10 +6,7 @@ use App\Modules\Assignment\Jobs\AutoAssignTicket;
 use App\Modules\Sla\Models\SlaPolicy;
 use App\Modules\Sla\Services\SlaCalculator;
 use App\Modules\Tickets\Actions\ChangeTicketStatus;
-use App\Modules\Tickets\Actions\CloseTicket;
 use App\Modules\Tickets\Actions\CreateTicket;
-use App\Modules\Tickets\Actions\ReopenTicket;
-use App\Modules\Tickets\Actions\ResolveTicket;
 use App\Modules\Tickets\Actions\UpdateTicket;
 use App\Modules\Tickets\Enums\TicketPriority;
 use App\Modules\Tickets\Enums\TicketStatus;
@@ -171,7 +168,7 @@ it('resolves: sets resolved_at, records activity and dispatches TicketResolved',
     Event::fake([TicketResolved::class, TicketStatusChanged::class]);
     $ticket = Ticket::factory()->inProgress()->create();
 
-    $resolved = app(ResolveTicket::class)($this->agent, $ticket, 'Password reset sent');
+    $resolved = app(ChangeTicketStatus::class)($this->agent, $ticket, TicketStatus::Resolved, 'Password reset sent');
 
     expect($resolved->status)->toBe(TicketStatus::Resolved)
         ->and($resolved->resolved_at)->not->toBeNull()
@@ -184,7 +181,7 @@ it('resolves: sets resolved_at, records activity and dispatches TicketResolved',
 it('closes a resolved ticket and sets closed_at', function () {
     $ticket = Ticket::factory()->resolved()->create();
 
-    $closed = app(CloseTicket::class)($this->customer, $ticket);
+    $closed = app(ChangeTicketStatus::class)($this->customer, $ticket, TicketStatus::Closed);
 
     expect($closed->status)->toBe(TicketStatus::Closed)->and($closed->closed_at)->not->toBeNull();
 });
@@ -194,7 +191,7 @@ it('reopens a resolved ticket: clears finished timestamps and restarts the SLA',
     $this->travelTo(CarbonImmutable::parse('2026-11-05 11:00:00', 'UTC'));
     $ticket = Ticket::factory()->resolved()->escalated()->priority(TicketPriority::High)->create();
 
-    $reopened = app(ReopenTicket::class)($this->customer, $ticket, 'Still broken');
+    $reopened = app(ChangeTicketStatus::class)($this->customer, $ticket, TicketStatus::reopenTarget(), 'Still broken');
 
     // Fresh 480 business minutes from the reopen time: Sunday 16:00 Dhaka = 10:00 UTC.
     expect($reopened->status)->toBe(TicketStatus::InProgress)
@@ -208,7 +205,7 @@ it('reopens a resolved ticket: clears finished timestamps and restarts the SLA',
 it('lets only an admin reopen a closed ticket', function () {
     $ticket = Ticket::factory()->closed()->create();
 
-    expect(fn () => app(ReopenTicket::class)($this->agent, $ticket))->toThrow(InvalidTicketTransition::class);
+    expect(fn () => app(ChangeTicketStatus::class)($this->agent, $ticket, TicketStatus::reopenTarget()))->toThrow(InvalidTicketTransition::class);
 
-    expect(app(ReopenTicket::class)($this->admin, $ticket)->status)->toBe(TicketStatus::InProgress);
+    expect(app(ChangeTicketStatus::class)($this->admin, $ticket, TicketStatus::reopenTarget())->status)->toBe(TicketStatus::InProgress);
 });

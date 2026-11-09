@@ -14,9 +14,8 @@ class TicketReplyController extends Controller
     public function store(StoreReplyRequest $request, Ticket $ticket, AddReply $addReply): RedirectResponse
     {
         // Derived on the server: customers can only ever post public replies.
+        // StoreReplyRequest has already checked reply / work for this type.
         $type = $request->replyType();
-
-        $this->authorize($type === ReplyType::InternalNote ? 'addInternalNote' : 'reply', $ticket);
 
         $reply = $addReply(
             $request->user(),

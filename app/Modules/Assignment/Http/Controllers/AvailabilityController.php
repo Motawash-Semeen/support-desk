@@ -11,8 +11,6 @@ class AvailabilityController extends Controller
 {
     public function __invoke(UpdateAvailabilityRequest $request, SetAgentAvailability $setAvailability): RedirectResponse
     {
-        $this->authorize('update-availability');
-
         $setAvailability($request->user(), $request->boolean('is_available'));
 
         return back()->with('status', $request->boolean('is_available')

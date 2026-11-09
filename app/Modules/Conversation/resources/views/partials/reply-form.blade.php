@@ -4,7 +4,7 @@
 --}}
 @php
     $canReply = auth()->user()->can('reply', $ticket);
-    $canNote = auth()->user()->can('addInternalNote', $ticket);
+    $canNote = auth()->user()->can('work', $ticket);
     $initialType = old('type', $canReply ? 'public' : 'internal_note');
 @endphp
 

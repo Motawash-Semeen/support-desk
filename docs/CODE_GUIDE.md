@@ -39,9 +39,9 @@ The app is built with **Laravel 12** (a PHP framework). If a word below is new, 
 | **Middleware** | A check that runs before the controller | `auth` (must be signed in), `role:admin` (must be an admin) |
 | **Controller** | Receives the request and sends back a page or redirect. Here, controllers are *thin*: they only check, validate and hand off | `TicketController` |
 | **Form request** | A class with the validation rules for one form | `StoreTicketRequest` (subject required, max 255…) |
-| **Policy** | Answers "may this user do this to this record?" | `TicketPolicy::resolve()` |
-| **Gate** | Same idea for actions that have no record | `manage-sla-settings` (admins only) |
-| **Action** | One class per business task that does the real work, inside a database transaction | `CreateTicket`, `ResolveTicket` |
+| **Policy** | Answers "may this user do this to this record?" | `TicketPolicy::work()` (the assigned agent or an admin) |
+| **Gate** | Same idea for actions that have no record. Only one is left (`viewLogViewer`, required by the log viewer); role-only pages use `role:` middleware instead | `viewLogViewer` |
+| **Action** | One class per business task that does the real work, inside a database transaction | `CreateTicket`, `ChangeTicketStatus` |
 | **Service** | Reusable logic used by several actions | `BusinessCalendar` (deadline maths) |
 | **Model** | One database table as a PHP class, with its relationships | `Ticket`, `User` |
 | **Migration** | A file that creates a database table | `create_tickets_table.php` |
@@ -70,7 +70,7 @@ Browser asks for a URL
   → middleware           auth, verified, role:admin|agent
   → controller           checks permission, validates, calls ONE action, returns a page
       → form request     validation rules
-      → policy / gate    who may do it
+      → policy           who may do it to this ticket (role-only pages: the role middleware)
       → action           the real work, inside one database transaction
           → services     reusable logic (deadline maths, ticket numbers, history)
           → models       read and write the tables
@@ -126,7 +126,7 @@ docs/                          these guides, DECISIONS.md, PERFORMANCE.md
 ```
 app/Modules/<Module>/
   Models/  Enums/  Actions/  Services/  Policies/  Events/  Jobs/  Listeners/
-  Http/Controllers/  Http/Requests/  Http/Resources/
+  Http/Controllers/  Http/Requests/
   Console/Commands/  resources/views/  routes/web.php  database/migrations/
 ```
 
@@ -153,7 +153,7 @@ A module's templates are used as `view('Tickets::index')`, and its components as
 | `register()` | Tells Laravel which class to use for the SLA rules and calculator |
 | `configureEloquent()` | Outside production, makes database mistakes loud: loading data in a loop by accident (N+1 queries) or writing a field that isn't allowed throws an error, so tests catch it |
 | `configureModules()` | Connects `Ticket` to `TicketPolicy` and `Attachment` to `AttachmentPolicy`, and tells Laravel where test factories are (module models live outside the usual folder) |
-| `configureAuthorization()` | Defines the gates: `view-dashboard`, `view-unassigned-queue`, `search-customers` (staff), `manage-sla-settings`, `viewLogViewer` (admins), `update-availability` (agents), `use-notifications` (everyone). Also feeds the sidebar its unread-notification count, counted once per page |
+| `configureAuthorization()` | Defines the one gate, `viewLogViewer` (admins), which the log-viewer package requires. Pages that depend only on the role are guarded by `role:` middleware on their URLs instead. Also feeds the sidebar its unread-notification count, counted once per page |
 | `configureRouteBindings()` | Turns `{ticket}` in a URL into a ticket **by its number**. For customers it looks only among their own tickets, so someone else's ticket is a 404, exactly like a ticket that doesn't exist. For agents, `TicketPolicy` gives the same 404 for tickets that aren't theirs |
 | `configureRateLimits()` | Per-user limits per minute on creating tickets, replying, downloading and importing (numbers in `config/support.php`) |
 | `boot()` | Password rules: at least 8 characters; in production at least 10, mixed case, numbers, and not found in known data breaches |
@@ -243,10 +243,9 @@ filters. **Tables:** `categories`, `ticket_sequences`, `tickets`.
 | `index` | `GET /tickets` | The ticket list: applies `TicketFilter` (search, filters, sort) and pages it quickly with `DeferredPagination`. Admins see every ticket, agents only tickets assigned to them, customers only their own. Passes categories, agents and the chosen customer to the filter bar |
 | `create` | `GET /tickets/create` | Shows the new-ticket form |
 | `store` | `POST /tickets` | Validates with `StoreTicketRequest`, calls `CreateTicket`, redirects to the new ticket |
-| `show` | `GET /tickets/{ticket}` | The ticket page: replies, attachments and activities **already filtered for the viewer** (customers get no internal notes), plus agents for the assign dropdown. Also answers as JSON when asked |
+| `show` | `GET /tickets/{ticket}` | The ticket page: replies, attachments and activities **already filtered for the viewer** (customers get no internal notes), plus agents for the assign dropdown |
 | `edit` / `update` | `GET …/edit`, `PATCH /tickets/{ticket}` | Edit form / save through `UpdateTicket` |
-| `resolve`, `close`, `reopen` | `POST …/resolve`, `…/close`, `…/reopen` | Each checks its own permission and calls `ResolveTicket`, `CloseTicket` or `ReopenTicket` |
-| `changeStatus` | `POST …/status` | Any other status move, through `ChangeTicketStatus` |
+| `changeStatus` | `POST /tickets/{ticket}/status` | **Every** status change: Resolve, Close and Reopen buttons and the status dropdown all post their target status here, and it calls `ChangeTicketStatus` |
 
 **`CustomerSearchController`** (`GET /staff/customers/search`, staff only): the customer autocomplete in the filter
 bar. Matches the start of a name or email and returns at most 10 customers.
@@ -258,8 +257,7 @@ bar. Matches the start of a name or email and returns at most 10 customers.
 | `StoreTicketRequest` | subject, description, priority, active category, attachments |
 | `UpdateTicketRequest` | the same fields; priority and category are accepted **only** from users allowed to change them (otherwise a validation error, not a silent drop) |
 | `TicketIndexRequest` | every list parameter (search, filters, sort, scope). Staff-only filters are validated for everyone but ignored for customers |
-| `ChangeTicketStatusRequest` | the target status, and the matching permission (resolve, close, reopen or changeStatus) |
-| `TicketStatusActionRequest` | the optional reason on resolve/close/reopen |
+| `ChangeTicketStatusRequest` | the target status, the optional reason, and the matching permission: `close` for Closed, `reopen` for leaving a finished state, `work` for everything else |
 | `CustomerSearchRequest` | the autocomplete text |
 
 ### Actions (the real work)
@@ -269,7 +267,6 @@ bar. Matches the start of a name or email and returns at most 10 customers.
 | `CreateTicket` | In one transaction: takes the next ticket number, calculates the deadline in business hours, saves the ticket, writes "Ticket … created" to the history, stores attachments, and (after commit) fires `TicketCreated` and queues auto-assignment. If anything fails, everything is undone and stored files are deleted |
 | `UpdateTicket` | Saves edited fields, writes one history entry per changed field, and recalculates the deadline when the priority changes |
 | `ChangeTicketStatus` | **The only place a status changes.** Locks the ticket, refuses illegal moves (`InvalidTicketTransition`, shown as a form error), sets or clears `resolved_at`/`closed_at`, restarts the deadline on reopen, writes history, fires events |
-| `ResolveTicket`, `CloseTicket`, `ReopenTicket` | Short wrappers around `ChangeTicketStatus` with a fixed target status |
 
 ### Services, filters and support
 
@@ -283,11 +280,10 @@ bar. Matches the start of a name or email and returns at most 10 customers.
 
 | File | Plain meaning |
 |---|---|
-| `Policies/TicketPolicy.php` | Who may do what to a ticket: view, update, changePriority, changeCategory, assign, accept, release, reply, addInternalNote, resolve, close, reopen, changeStatus, viewInternalNotes, import. Answers depend on role, ownership (the customer who created it, the agent assigned) and the ticket's state. **Visibility comes first** (`canSee()`): admins see every ticket, agents their own plus active unassigned ones, customers their own; any ticket outside that is a 404 for every ability, except an agent's `accept`, so losing a race shows "just taken" instead. Admins pass almost everything |
+| `Policies/TicketPolicy.php` | Who may do what to one ticket: `view`, `work` (change priority, category or working status, resolve, write internal notes: the assigned agent or an admin), `update` (subject/description; also the customer while open), `reply`, `close`, `reopen`, `assign`, `accept`, `release`, `viewInternalNotes`. Answers depend on role, ownership (the customer who created it, the agent assigned) and the ticket's state. **Visibility comes first** (`canSee()`): admins see every ticket, agents their own plus active unassigned ones, customers their own; any ticket outside that is a 404 for every ability, except an agent's `accept`, so losing a race shows "just taken" instead. Admins pass almost everything |
 | `Events/*` | `TicketCreated`, `TicketUpdated`, `TicketStatusChanged`, `TicketResolved`, `TicketReopened`, all fired after commit |
 | `Exceptions/InvalidTicketTransition.php` | An illegal status move, shown as a form error instead of an error page |
-| `Http/Resources/TicketResource.php` | The JSON shape of a ticket, built only from data already filtered for the viewer |
-| `Console/Commands/AutoCloseResolvedTickets.php` | `tickets:auto-close-resolved`: closes tickets resolved more than 3 days ago, one at a time, through `CloseTicket` (so the rules and history still apply) |
+| `Console/Commands/AutoCloseResolvedTickets.php` | `tickets:auto-close-resolved`: closes tickets resolved more than 3 days ago, one at a time, through `ChangeTicketStatus` (so the rules and history still apply) |
 | Views | `index` (list), `show` (ticket page), `create`, `edit`, partials `filter-bar` (search, tabs, chips, filter panel), `form`, `status-actions` |
 | Routes | `/tickets…` and `/staff/customers/search` |
 
@@ -312,7 +308,7 @@ bar. Matches the start of a name or email and returns at most 10 customers.
 | `Support/AttachmentRules` | The shared upload rules (count, size, allowed extensions **and** the real file content type), built from the settings |
 | `Support/SafeFilename` | Cleans a file name before it is stored or sent back in a download |
 | `Console/Commands/PurgeOrphanAttachments` | `attachments:purge-orphans`: deletes files with no database row older than 24 hours |
-| `Events/ReplyAdded`, `Exceptions/ReplyNotAllowed`, `Http/Resources/*` | The after-commit event, the closed-ticket error, and the JSON shapes (no storage paths are ever exposed) |
+| `Events/ReplyAdded`, `Exceptions/ReplyNotAllowed` | The after-commit event and the closed-ticket error |
 | Views | `reply-form` (reply / internal note tabs), `attachments`, `attachment-input` |
 
 ---
@@ -420,7 +416,6 @@ screen. **Tables:** `sla_policies` (target per priority), `business_hours` (one 
 | `Models/TicketActivity.php` | One history entry. **Append-only**: the model refuses updates and deletes |
 | `Enums/ActivityType.php` | Every kind of entry (created, assigned, reassigned, released, status changed, priority changed, agent replied, internal note added, SLA warning, SLA breached, escalated, imported, …) with a label, and `isCustomerVisible()`: customers see changes to their ticket and replies, but not assignment, internal notes or SLA/escalation steps |
 | `resources/views/components/ticket-timeline.blade.php` | `<x-Activity::ticket-timeline>`: the Activity box on the ticket page, newest or oldest first, paged |
-| `Http/Resources/TicketActivityResource.php` | JSON shape: description only, never the internal old/new values |
 
 ---
 
@@ -534,11 +529,11 @@ The error-report download protects against spreadsheet formula injection: cells 
 
 ## 14. Security in one list
 
-- Every controller method calls `$this->authorize()` (policy or gate); URL groups add `auth`, `verified` and
-  `role:` middleware.
+- Every action on one ticket asks `TicketPolicy` (in the controller or its form request); every URL group has
+  `auth` and `verified`, and role-only pages (dashboard, queue, admin screens) have `role:` middleware.
 - Customers see only their own tickets; agents see only tickets assigned to them, plus the unassigned queue;
   admins see everything. Any other ticket gives a 404, the same as a missing ticket, so numbers can't be probed.
-- Internal notes are filtered on the server for the page, the JSON, emails and the timeline.
+- Internal notes are filtered on the server for the page, emails and the timeline.
 - Uploads: allowed extension **and** real file content checked, size and count limits, stored privately under
   random names, downloaded only through `AttachmentPolicy`.
 - Roles can't be set from any form; every model lists the fields forms may fill (`$fillable`).
@@ -578,7 +573,7 @@ vendor/bin/phpstan analyse                 # static analysis (Larastan level 5)
 | change the timezone, upload limits, auto-close days | `config/support.php` (each value has a `SUPPORT_*` env variable) |
 | add a field to tickets | migration in `app/Modules/Tickets/database/migrations`, `$fillable` and `casts()` in `Models/Ticket.php`, rules in `StoreTicketRequest` / `UpdateTicketRequest`, the form in `resources/views/partials/form.blade.php`, and `database/factories/TicketFactory.php` |
 | allow a new status move | `Tickets/Enums/TicketStatus.php` → `allowedTransitions()` |
-| change who can do something | `Tickets/Policies/TicketPolicy.php`; gates in `app/Providers/AppServiceProvider.php` |
+| change who can do something | `Tickets/Policies/TicketPolicy.php` for ticket actions; the `role:` middleware in the module's `routes/web.php` for role-only pages |
 | change which tickets someone can see | `TicketPolicy::canSee()` and `Ticket::scopeVisibleTo()` (keep them the same), plus the agent rule in `TicketFilter::apply()` |
 | change who receives an email | the matching `Notifications/Listeners/Notify*.php` |
 | change an email's text | `Notifications/Notifications/*Notification.php` and `Notifications/resources/views/mail/ticket.blade.php` |

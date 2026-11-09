@@ -171,9 +171,9 @@ it('returns 404 for every ticket route when a customer targets someone else\'s t
     ['get', 'tickets.show', []],
     ['get', 'tickets.edit', []],
     ['patch', 'tickets.update', ['subject' => 'x']],
-    ['post', 'tickets.resolve', []],
-    ['post', 'tickets.close', []],
-    ['post', 'tickets.reopen', []],
+    ['post', 'tickets.status', ['status' => 'resolved']],
+    ['post', 'tickets.status', ['status' => 'closed']],
+    ['post', 'tickets.status', ['status' => 'in_progress']],
     ['post', 'tickets.status', ['status' => 'in_progress']],
 ]);
 
@@ -182,21 +182,21 @@ it('returns 404 for every ticket route when a customer targets someone else\'s t
 it('lets the assigned agent resolve, the customer close, and the customer reopen', function () {
     $ticket = Ticket::factory()->for($this->customer, 'creator')->inProgress()->assigned($this->agent)->create();
 
-    $this->actingAs($this->agent)->post(route('tickets.resolve', $ticket), ['reason' => 'Fixed'])->assertRedirect(route('tickets.show', $ticket));
+    $this->actingAs($this->agent)->post(route('tickets.status', $ticket), ['status' => 'resolved', 'reason' => 'Fixed'])->assertRedirect(route('tickets.show', $ticket));
     expect($ticket->fresh()->status)->toBe(TicketStatus::Resolved);
 
-    $this->actingAs($this->customer)->post(route('tickets.reopen', $ticket), ['reason' => 'Not fixed'])->assertRedirect();
+    $this->actingAs($this->customer)->post(route('tickets.status', $ticket), ['status' => 'in_progress', 'reason' => 'Not fixed'])->assertRedirect();
     expect($ticket->fresh()->status)->toBe(TicketStatus::InProgress);
 
-    $this->actingAs($this->agent)->post(route('tickets.resolve', $ticket));
-    $this->actingAs($this->customer)->post(route('tickets.close', $ticket))->assertRedirect();
+    $this->actingAs($this->agent)->post(route('tickets.status', $ticket), ['status' => 'resolved']);
+    $this->actingAs($this->customer)->post(route('tickets.status', $ticket), ['status' => 'closed'])->assertRedirect();
     expect($ticket->fresh()->status)->toBe(TicketStatus::Closed);
 });
 
 it('forbids customers from resolving their own ticket', function () {
     $ticket = Ticket::factory()->for($this->customer, 'creator')->inProgress()->create();
 
-    $this->actingAs($this->customer)->post(route('tickets.resolve', $ticket))->assertForbidden();
+    $this->actingAs($this->customer)->post(route('tickets.status', $ticket), ['status' => 'resolved'])->assertForbidden();
 });
 
 it('renders an illegal transition as a validation error, not a 500', function () {
@@ -204,7 +204,7 @@ it('renders an illegal transition as a validation error, not a 500', function ()
 
     $this->actingAs($this->agent)
         ->from(route('tickets.show', $ticket))
-        ->post(route('tickets.close', $ticket))
+        ->post(route('tickets.status', $ticket), ['status' => 'closed'])
         ->assertRedirect(route('tickets.show', $ticket))
         ->assertSessionHasErrors(['status' => 'A ticket cannot move from In progress to Closed.']);
 
@@ -215,7 +215,7 @@ it('returns 422 JSON for an illegal transition when JSON is expected', function 
     $ticket = Ticket::factory()->inProgress()->assigned($this->agent)->create();
 
     $this->actingAs($this->agent)
-        ->postJson(route('tickets.close', $ticket))
+        ->postJson(route('tickets.status', $ticket), ['status' => 'closed'])
         ->assertUnprocessable()
         ->assertJsonValidationErrors('status');
 });
@@ -244,9 +244,9 @@ it('requires the ability that matches the target status on the status endpoint',
 it('lets only an admin reopen a closed ticket over HTTP', function () {
     $ticket = Ticket::factory()->for($this->customer, 'creator')->closed()->assigned($this->agent)->create();
 
-    $this->actingAs($this->customer)->post(route('tickets.reopen', $ticket))->assertForbidden();
-    $this->actingAs($this->agent)->post(route('tickets.reopen', $ticket))->assertForbidden();
-    $this->actingAs($this->admin)->post(route('tickets.reopen', $ticket))->assertRedirect();
+    $this->actingAs($this->customer)->post(route('tickets.status', $ticket), ['status' => 'in_progress'])->assertForbidden();
+    $this->actingAs($this->agent)->post(route('tickets.status', $ticket), ['status' => 'in_progress'])->assertForbidden();
+    $this->actingAs($this->admin)->post(route('tickets.status', $ticket), ['status' => 'in_progress'])->assertRedirect();
 
     expect($ticket->fresh()->status)->toBe(TicketStatus::InProgress);
 });
@@ -255,11 +255,10 @@ it('shows only the actions the viewer may take', function () {
     $ticket = Ticket::factory()->for($this->customer, 'creator')->inProgress()->assigned($this->agent)->create();
 
     $this->actingAs($this->agent)->get(route('tickets.show', $ticket))
-        ->assertSee(route('tickets.resolve', $ticket))
         ->assertSee(route('tickets.status', $ticket))
-        ->assertDontSee(route('tickets.close', $ticket));
+        ->assertSee('name="status" value="resolved"', false)
+        ->assertDontSee('name="status" value="closed"', false);
 
     $this->actingAs($this->customer)->get(route('tickets.show', $ticket))
-        ->assertDontSee(route('tickets.resolve', $ticket))
         ->assertDontSee(route('tickets.status', $ticket));
 });

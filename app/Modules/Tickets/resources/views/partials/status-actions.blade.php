@@ -13,12 +13,13 @@
         ? array_values(array_filter($status->allowedTransitions(), fn (TicketStatus $to) => $to->isActive()))
         : [];
 
+    // One button per finishing move; each posts its target status to tickets.status.
     $actions = array_filter([
-        'resolve' => auth()->user()->can('resolve', $ticket) && $possible(TicketStatus::Resolved) ? __('Resolve') : null,
-        'close' => auth()->user()->can('close', $ticket) && $possible(TicketStatus::Closed) ? __('Close') : null,
-        'reopen' => auth()->user()->can('reopen', $ticket) && $possible(TicketStatus::reopenTarget()) ? __('Reopen') : null,
+        'resolve' => auth()->user()->can('work', $ticket) && $possible(TicketStatus::Resolved) ? [__('Resolve'), TicketStatus::Resolved] : null,
+        'close' => auth()->user()->can('close', $ticket) && $possible(TicketStatus::Closed) ? [__('Close'), TicketStatus::Closed] : null,
+        'reopen' => auth()->user()->can('reopen', $ticket) && $possible(TicketStatus::reopenTarget()) ? [__('Reopen'), TicketStatus::reopenTarget()] : null,
     ]);
-    $canChangeStatus = auth()->user()->can('changeStatus', $ticket) && $workingMoves !== [];
+    $canChangeStatus = auth()->user()->can('work', $ticket) && $workingMoves !== [];
     $icons = ['resolve' => 'check-circle', 'close' => 'lock', 'reopen' => 'refresh'];
 @endphp
 
@@ -40,9 +41,10 @@
                 </form>
             @endif
 
-            @foreach ($actions as $action => $label)
-                <form method="POST" action="{{ route("tickets.{$action}", $ticket) }}" class="space-y-2" x-data="{ reason: false }">
+            @foreach ($actions as $action => [$label, $target])
+                <form method="POST" action="{{ route('tickets.status', $ticket) }}" class="space-y-2" x-data="{ reason: false }">
                     @csrf
+                    <input type="hidden" name="status" value="{{ $target->value }}">
                     <div x-show="reason" x-cloak>
                         <label for="reason-{{ $action }}" class="sr-only">{{ __('Reason (optional)') }}</label>
                         <input id="reason-{{ $action }}" name="reason" type="text" maxlength="1000" placeholder="{{ __('Reason (optional)') }}" class="field-input">

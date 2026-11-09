@@ -96,21 +96,15 @@ class AppServiceProvider extends ServiceProvider
     }
 
     /**
-     * Gates here cover abilities that have no model; model policies are
-     * mapped in configureModules().
+     * Role-only pages are guarded by the `role:` route middleware, so the only
+     * gate left is the one opcodesio/log-viewer requires. Ticket rules live in
+     * TicketPolicy (mapped in configureModules()).
      */
     private function configureAuthorization(): void
     {
-        Gate::define('view-dashboard', fn (User $user): bool => $user->isStaff());
-        Gate::define('manage-sla-settings', fn (User $user): bool => $user->isAdmin());
         // opcodesio/log-viewer's own gate (raw files in storage/logs); the route
         // middleware in config/log-viewer.php already requires role:admin.
         Gate::define('viewLogViewer', fn (?User $user): bool => (bool) $user?->isAdmin());
-        Gate::define('view-unassigned-queue', fn (User $user): bool => $user->isStaff());
-        Gate::define('search-customers', fn (User $user): bool => $user->isStaff());
-        Gate::define('update-availability', fn (User $user): bool => $user->isAgent());
-        // Every signed-in user has an inbox; queries are scoped to their own rows.
-        Gate::define('use-notifications', fn (User $user): bool => true);
 
         // Cosmetic only: hides staff UI. The server still authorizes every action.
         Blade::if('staff', fn (): bool => (bool) auth()->user()?->isStaff());

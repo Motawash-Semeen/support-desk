@@ -14,9 +14,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/{ticket}', 'show')->name('show');
         Route::get('/{ticket}/edit', 'edit')->name('edit');
         Route::patch('/{ticket}', 'update')->name('update');
-        Route::post('/{ticket}/resolve', 'resolve')->name('resolve');
-        Route::post('/{ticket}/close', 'close')->name('close');
-        Route::post('/{ticket}/reopen', 'reopen')->name('reopen');
         Route::post('/{ticket}/status', 'changeStatus')->name('status');
     });
 

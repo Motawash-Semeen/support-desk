@@ -31,7 +31,7 @@ it('answers the second accept with 409 Conflict and a clear message', function (
 });
 
 it('answers 409 JSON for API-style requests', function () {
-    $this->actingAs($this->agentA)->postJson(route('tickets.accept', $this->ticket))->assertOk();
+    $this->actingAs($this->agentA)->post(route('tickets.accept', $this->ticket))->assertRedirect();
 
     $this->actingAs($this->agentB)
         ->postJson(route('tickets.accept', $this->ticket))

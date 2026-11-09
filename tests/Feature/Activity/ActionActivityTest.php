@@ -15,8 +15,6 @@ use App\Modules\Sla\Actions\EscalateTicket;
 use App\Modules\Sla\Enums\EscalationKind;
 use App\Modules\Tickets\Actions\ChangeTicketStatus;
 use App\Modules\Tickets\Actions\CreateTicket;
-use App\Modules\Tickets\Actions\ReopenTicket;
-use App\Modules\Tickets\Actions\ResolveTicket;
 use App\Modules\Tickets\Actions\UpdateTicket;
 use App\Modules\Tickets\Enums\TicketPriority;
 use App\Modules\Tickets\Enums\TicketStatus;
@@ -104,15 +102,15 @@ it('status changes write one status_changed entry', function () {
         ->and($log[0]->old_values)->toBe(['status' => 'in_progress'])
         ->and($log[0]->new_values)->toBe(['status' => 'waiting_for_customer']);
 
-    $log = activitiesDuring(fn () => app(ResolveTicket::class)($this->agent, $this->ticket, 'Fixed'));
+    $log = activitiesDuring(fn () => app(ChangeTicketStatus::class)($this->agent, $this->ticket, TicketStatus::Resolved, 'Fixed'));
     expect($log->pluck('type')->all())->toBe([ActivityType::StatusChanged])
         ->and($log[0]->new_values)->toBeJsonObject(['status' => 'resolved', 'reason' => 'Fixed']);
 });
 
 it('a reopen logs reopened and the fresh SLA', function () {
-    app(ResolveTicket::class)($this->agent, $this->ticket);
+    app(ChangeTicketStatus::class)($this->agent, $this->ticket, TicketStatus::Resolved);
 
-    $log = activitiesDuring(fn () => app(ReopenTicket::class)($this->customer, $this->ticket));
+    $log = activitiesDuring(fn () => app(ChangeTicketStatus::class)($this->customer, $this->ticket, TicketStatus::reopenTarget()));
 
     expect($log->pluck('type')->all())->toBe([ActivityType::Reopened, ActivityType::SlaRecalculated])
         ->and($log[0]->old_values)->toBe(['status' => 'resolved'])

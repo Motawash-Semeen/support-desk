@@ -10,9 +10,9 @@ use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 
 /**
- * Generic status change. The ability depends on the target, so moving to
- * Resolved needs `resolve`, to Closed needs `close`, out of a finished state
- * needs `reopen`, anything else needs `changeStatus`.
+ * Every status change (resolve, close, reopen, working statuses) goes through
+ * here. The ability depends on the target: Closed needs `close`, leaving a
+ * finished state needs `reopen`, anything else needs `work`.
  */
 class ChangeTicketStatusRequest extends FormRequest
 {
@@ -42,10 +42,9 @@ class ChangeTicketStatusRequest extends FormRequest
     public static function abilityFor(Ticket $ticket, TicketStatus $to): string
     {
         return match (true) {
-            $to === TicketStatus::Resolved => 'resolve',
             $to === TicketStatus::Closed => 'close',
             ! $ticket->isActive() && $to->isActive() => 'reopen',
-            default => 'changeStatus',
+            default => 'work',
         };
     }
 }

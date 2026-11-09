@@ -19,15 +19,15 @@
     <div class="flex-1 space-y-6 overflow-y-auto">
         <div class="space-y-1">
             <p class="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-ink-500">{{ __('Workspace') }}</p>
-            @can('view-dashboard')
+            @staff
                 <x-nav-link :href="route('staff.dashboard')" :active="request()->routeIs('staff.dashboard')" icon="chart">{{ __('Dashboard') }}</x-nav-link>
-            @endcan
+            @endstaff
             <x-nav-link :href="route('tickets.index')" :active="request()->routeIs('tickets.*')" icon="ticket">
                 {{ $user->isAdmin() ? __('Tickets') : __('My tickets') }}
             </x-nav-link>
-            @can('view-unassigned-queue')
+            @staff
                 <x-nav-link :href="route('staff.unassigned')" :active="request()->routeIs('staff.unassigned')" icon="inbox">{{ __('Unassigned queue') }}</x-nav-link>
-            @endcan
+            @endstaff
             <a href="{{ route('notifications.index') }}"
                @class([
                    'group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium',
@@ -45,18 +45,12 @@
             </a>
         </div>
 
-        @if ($user->can('manage-sla-settings') || $user->can('import', App\Modules\Tickets\Models\Ticket::class) || $user->can('viewLogViewer'))
+        @if ($user->isAdmin())
             <div class="space-y-1">
                 <p class="px-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-ink-500">{{ __('Administration') }}</p>
-                @can('manage-sla-settings')
-                    <x-nav-link :href="route('admin.sla-settings.index')" :active="request()->routeIs('admin.sla-settings.*')" icon="adjustments">{{ __('SLA settings') }}</x-nav-link>
-                @endcan
-                @can('import', App\Modules\Tickets\Models\Ticket::class)
-                    <x-nav-link :href="route('admin.imports.index')" :active="request()->routeIs('admin.imports.*')" icon="upload">{{ __('Import') }}</x-nav-link>
-                @endcan
-                @can('viewLogViewer')
-                    <x-nav-link :href="route('log-viewer.index')" :active="request()->routeIs('log-viewer.*')" icon="document">{{ __('Logs') }}</x-nav-link>
-                @endcan
+                <x-nav-link :href="route('admin.sla-settings.index')" :active="request()->routeIs('admin.sla-settings.*')" icon="adjustments">{{ __('SLA settings') }}</x-nav-link>
+                <x-nav-link :href="route('admin.imports.index')" :active="request()->routeIs('admin.imports.*')" icon="upload">{{ __('Import') }}</x-nav-link>
+                <x-nav-link :href="route('log-viewer.index')" :active="request()->routeIs('log-viewer.*')" icon="document">{{ __('Logs') }}</x-nav-link>
             </div>
         @endif
     </div>

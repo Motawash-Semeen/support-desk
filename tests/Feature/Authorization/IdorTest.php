@@ -43,20 +43,18 @@ test('a customer gets 404 on every ticket route for another customer\'s ticket a
     'edit form' => ['get', 'tickets.edit', []],
     'update' => ['patch', 'tickets.update', ['subject' => 'pwned', 'description' => 'pwned', 'priority' => 'critical']],
     'reply' => ['post', 'tickets.replies.store', ['body' => 'pwned']],
-    'resolve' => ['post', 'tickets.resolve', []],
-    'close' => ['post', 'tickets.close', []],
-    'reopen' => ['post', 'tickets.reopen', []],
+    'resolve' => ['post', 'tickets.status', ['status' => 'resolved']],
+    'close' => ['post', 'tickets.status', ['status' => 'closed']],
+    'reopen' => ['post', 'tickets.status', ['status' => 'in_progress']],
     'change status' => ['post', 'tickets.status', ['status' => TicketStatus::Open->value]],
     'accept' => ['post', 'tickets.accept', []],
     'assign' => ['post', 'tickets.assign', ['agent_id' => 1]],
     'release' => ['post', 'tickets.release', []],
 ]);
 
-test('a customer gets a JSON 404 for another customer\'s ticket, identical to a missing one', function () {
-    $other = $this->actingAs($this->attacker)->getJson(route('tickets.show', $this->ticket))->assertNotFound();
-    $missing = $this->actingAs($this->attacker)->getJson(route('tickets.show', 'TKT-2026-999998'))->assertNotFound();
-
-    expect($other->json('message'))->toBe($missing->json('message'));
+test('a customer gets the same 404 page for another customer\'s ticket as for a missing one', function () {
+    $this->actingAs($this->attacker)->get(route('tickets.show', $this->ticket))->assertNotFound()->assertSee('Page not found');
+    $this->actingAs($this->attacker)->get(route('tickets.show', 'TKT-2026-999998'))->assertNotFound()->assertSee('Page not found');
 });
 
 test('a customer cannot enumerate neighbouring ticket numbers', function () {

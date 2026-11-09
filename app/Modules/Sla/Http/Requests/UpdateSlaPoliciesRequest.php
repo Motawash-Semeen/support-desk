@@ -14,11 +14,6 @@ class UpdateSlaPoliciesRequest extends FormRequest
      */
     public const MAX_MINUTES = 20_160;
 
-    public function authorize(): bool
-    {
-        return $this->user()->can('manage-sla-settings');
-    }
-
     public function rules(): array
     {
         $priorities = implode(',', array_column(TicketPriority::cases(), 'value'));

@@ -13,7 +13,7 @@
         @method('PATCH')
 
         <x-card>
-            @include('Tickets::partials.form', ['showPriority' => $canChangePriority, 'showCategory' => $canChangeCategory])
+            @include('Tickets::partials.form', ['showPriority' => $canWork, 'showCategory' => $canWork])
 
             <x-slot name="footer">
                 <a href="{{ route('tickets.show', $ticket) }}" class="btn btn-ghost">{{ __('Cancel') }}</a>

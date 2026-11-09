@@ -19,8 +19,6 @@ class CustomerSearchController extends Controller
 {
     public function __invoke(CustomerSearchRequest $request): JsonResponse
     {
-        $this->authorize('search-customers');
-
         $prefix = FullTextQuery::escapeLike(trim($request->validated('q'))).'%';
 
         $customers = User::query()

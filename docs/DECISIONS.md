@@ -6,7 +6,7 @@ order in which decisions were made, not their importance. Superseded entries are
 
 | Area | Entries |
 |---|---|
-| [Foundation and stack](#foundation-and-stack) | D-001, D-002, D-003, D-004, D-005, D-006, D-007, D-008, D-011, D-012, D-013, D-015, D-043, D-126, D-127, D-129, D-130, D-131, D-132, D-133, D-134, D-135, D-136, D-137, D-138, D-139, D-140 |
+| [Foundation and stack](#foundation-and-stack) | D-001, D-002, D-003, D-004, D-005, D-006, D-007, D-008, D-011, D-012, D-013, D-015, D-043, D-126, D-127, D-129, D-130, D-131, D-132, D-133, D-134, D-135, D-136, D-137, D-138, D-139, D-140, D-141 |
 | [Database](#database) | D-016, D-017, D-018, D-019, D-020, D-021, D-022, D-023, D-024, D-025, D-027, D-028, D-030, D-031, D-055 |
 | [Authorization and security](#authorization-and-security) | D-026, D-032, D-033, D-034, D-035, D-036, D-037, D-038, D-039, D-040, D-041, D-042, D-051, D-120, D-122, D-123, D-124, D-125 |
 | [Tickets and lifecycle](#tickets-and-lifecycle) | D-044, D-045, D-046, D-029, D-047, D-048, D-049, D-052, D-053, D-054 |
@@ -264,6 +264,18 @@ order in which decisions were made, not their importance. Superseded entries are
 - **Options considered:** Keep "staff see everything"; agents see their tickets plus every unassigned ticket in the list; agents see only assigned tickets and the queue (chosen).
 - **Why this one:** Requested ("agents should see only their assigned tickets … not others' tickets"). The queue still has to be reachable, because accepting tickets is part of the assignment spec. So unassigned tickets stay visible, but only through the queue.
 - **Trade-off:** An agent loses access to a ticket as soon as it is reassigned to someone else, including its history. Notification links can lead to a 404: agents specialised in a category are told about new tickets, and once another agent takes one, that link no longer opens. Colleagues can no longer look at each other's tickets for context; an admin has to.
+
+### D-141 Authorization in one place each; one status endpoint; no unused JSON
+- **Decision:** Removed duplicated and unused code.
+  - **Gates:** six of the seven are gone (`view-dashboard`, `view-unassigned-queue`, `search-customers`, `manage-sla-settings`, `update-availability`, `use-notifications`). Role-only pages rely on the `role:` middleware already on their URLs; the availability URL gained `role:agent`; notifications are scoped to the user's own rows. Only `viewLogViewer`, required by the package, remains. The sidebar uses `@staff` and `isAdmin()`.
+  - **Ticket abilities:** the always-true `viewAny` and `create` and the role-only `import` are removed. `changePriority`, `changeCategory`, `addInternalNote`, `resolve` and `changeStatus`, which were identical (the assigned agent or an admin), became one ability, `work`. `TicketPolicy` went from 17 abilities to 10.
+  - **Double checks:** a controller that repeated its form request's `authorize()` no longer does (update, reply, status change, assign). Form requests that only repeated a role check lost their `authorize()`.
+  - **Status changes:** resolve, close and reopen had their own routes, controller methods, wrapper actions (`ResolveTicket`, `CloseTicket`, `ReopenTicket`) and form request (`TicketStatusActionRequest`). They now post their target status to the single `POST /tickets/{ticket}/status`, which calls `ChangeTicketStatus` (`close` for Closed, `reopen` for leaving a finished state, `work` otherwise).
+  - **Unused JSON:** the ticket page's JSON version (`TicketResource`, `TicketReplyResource`, `AttachmentResource`, `TicketActivityResource`) and the Accept JSON reply were removed; nothing in the app requested them. Error responses still answer JSON to JSON requests (Laravel's standard behaviour).
+  - **Tests:** the route audit now requires a policy call on every per-ticket URL and accepts role middleware or a reviewed entry elsewhere. The policy matrix lists `work` once instead of five identical rows.
+- **Options considered:** Keep everything; remove only the always-true gate; remove all duplication.
+- **Why this one:** Requested ("remove duplicate, unnecessary and useless code … simplify"). Every rule still holds and is still tested, but each one now lives in exactly one place.
+- **Trade-off:** Finer-grained abilities, such as letting someone resolve without changing priority, would need `work` split again. There is no JSON API for tickets; an API would add resources back deliberately.
 
 ## Database
 

@@ -7,7 +7,7 @@
         <p class="mt-2 text-sm text-ink-500">{{ __('Someone else changed this ticket at the same moment. Nothing was overwritten.') }}</p>
 
         <div class="mt-6 flex flex-wrap justify-center gap-3">
-            @can('view-unassigned-queue')
+            @staff
                 <a href="{{ route('staff.unassigned') }}" class="btn btn-secondary"><x-icon name="inbox" class="h-4 w-4" /> {{ __('Back to the unassigned queue') }}</a>
             @endcan
             @if ($ticketNumber)

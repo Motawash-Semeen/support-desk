@@ -2,7 +2,6 @@
 
 namespace App\Http\Controllers;
 
-use App\Modules\Tickets\Models\Ticket;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 
@@ -14,9 +13,7 @@ class DashboardController extends Controller
 {
     public function __invoke(Request $request): RedirectResponse
     {
-        $this->authorize('viewAny', Ticket::class);
-
-        return $request->user()->can('view-dashboard')
+        return $request->user()->isStaff()
             ? redirect()->route('staff.dashboard')
             : redirect()->route('tickets.index');
     }

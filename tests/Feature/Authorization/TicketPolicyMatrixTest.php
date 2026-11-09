@@ -23,15 +23,11 @@ const MATRIX = [
     'open_unassigned' => [
         'view' => 'A - A A N',
         'update' => 'A - D A N',
-        'changePriority' => 'A - D D N',
-        'changeCategory' => 'A - D D N',
+        'work' => 'A - D D N',
         'assign' => 'A - D D N',
         'accept' => 'D - A D N',
         'release' => 'D - D D N',
         'reply' => 'A - D A N',
-        'addInternalNote' => 'A - D D N',
-        'resolve' => 'A - D D N',
-        'changeStatus' => 'A - D D N',
         'close' => 'A - D D N',
         'reopen' => 'D - D D N',
         'viewInternalNotes' => 'A - A D N',
@@ -39,15 +35,11 @@ const MATRIX = [
     'open_assigned' => [
         'view' => 'A A N A N',
         'update' => 'A A N A N',
-        'changePriority' => 'A A N D N',
-        'changeCategory' => 'A A N D N',
+        'work' => 'A A N D N',
         'assign' => 'A D N D N',
         'accept' => 'D A A D N',
         'release' => 'A A N D N',
         'reply' => 'A A N A N',
-        'addInternalNote' => 'A A N D N',
-        'resolve' => 'A A N D N',
-        'changeStatus' => 'A A N D N',
         'close' => 'A A N D N',
         'reopen' => 'D D N D N',
         'viewInternalNotes' => 'A A N D N',
@@ -55,15 +47,11 @@ const MATRIX = [
     'in_progress' => [
         'view' => 'A A N A N',
         'update' => 'A A N D N',
-        'changePriority' => 'A A N D N',
-        'changeCategory' => 'A A N D N',
+        'work' => 'A A N D N',
         'assign' => 'A D N D N',
         'accept' => 'D A A D N',
         'release' => 'A A N D N',
         'reply' => 'A A N A N',
-        'addInternalNote' => 'A A N D N',
-        'resolve' => 'A A N D N',
-        'changeStatus' => 'A A N D N',
         'close' => 'A A N D N',
         'reopen' => 'D D N D N',
         'viewInternalNotes' => 'A A N D N',
@@ -71,15 +59,11 @@ const MATRIX = [
     'resolved' => [
         'view' => 'A A N A N',
         'update' => 'A A N D N',
-        'changePriority' => 'A A N D N',
-        'changeCategory' => 'A A N D N',
+        'work' => 'A A N D N',
         'assign' => 'D D N D N',
         'accept' => 'D D D D N',
         'release' => 'D D N D N',
         'reply' => 'A A N A N',
-        'addInternalNote' => 'A A N D N',
-        'resolve' => 'A A N D N',
-        'changeStatus' => 'A A N D N',
         'close' => 'A A N A N',
         'reopen' => 'A A N A N',
         'viewInternalNotes' => 'A A N D N',
@@ -87,15 +71,11 @@ const MATRIX = [
     'closed' => [
         'view' => 'A A N A N',
         'update' => 'A A N D N',
-        'changePriority' => 'A A N D N',
-        'changeCategory' => 'A A N D N',
+        'work' => 'A A N D N',
         'assign' => 'D D N D N',
         'accept' => 'D D D D N',
         'release' => 'D D N D N',
         'reply' => 'D D N D N',
-        'addInternalNote' => 'A A N D N',
-        'resolve' => 'A A N D N',
-        'changeStatus' => 'A A N D N',
         'close' => 'A A N D N',
         'reopen' => 'A D N D N',
         'viewInternalNotes' => 'A A N D N',
@@ -163,19 +143,3 @@ it('treats waiting-for-customer like any other active status', function () {
         ->and(Gate::forUser($users['owner'])->allows('update', $ticket))->toBeFalse()
         ->and(Gate::forUser($users['other_customer'])->inspect('reply', $ticket)->status())->toBe(404);
 });
-
-it('applies class-level abilities and gates by role', function (string $actor, string $ability, bool $allowed) {
-    $user = matrixUsers()[$actor];
-
-    $result = in_array($ability, ['view-dashboard', 'manage-sla-settings'], true)
-        ? Gate::forUser($user)->allows($ability)
-        : Gate::forUser($user)->allows($ability, Ticket::class);
-
-    expect($result)->toBe($allowed);
-})->with([
-    ['admin', 'viewAny', true], ['assignee', 'viewAny', true], ['owner', 'viewAny', true],
-    ['admin', 'create', true], ['assignee', 'create', true], ['owner', 'create', true],
-    ['admin', 'import', true], ['assignee', 'import', false], ['owner', 'import', false],
-    ['admin', 'view-dashboard', true], ['assignee', 'view-dashboard', true], ['owner', 'view-dashboard', false],
-    ['admin', 'manage-sla-settings', true], ['assignee', 'manage-sla-settings', false], ['owner', 'manage-sla-settings', false],
-]);

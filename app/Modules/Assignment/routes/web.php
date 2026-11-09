@@ -18,6 +18,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->name('staff.unassigned');
 });
 
-Route::middleware('auth')->group(function () {
+Route::middleware(['auth', 'role:agent'])->group(function () {
     Route::patch('/profile/availability', AvailabilityController::class)->name('profile.availability.update');
 });

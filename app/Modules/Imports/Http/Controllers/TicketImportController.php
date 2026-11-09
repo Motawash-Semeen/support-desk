@@ -9,7 +9,6 @@ use App\Modules\Imports\Enums\ImportStatus;
 use App\Modules\Imports\Http\Requests\StoreTicketImportRequest;
 use App\Modules\Imports\Jobs\ProcessTicketImport;
 use App\Modules\Imports\Models\TicketImport;
-use App\Modules\Tickets\Models\Ticket;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -25,8 +24,6 @@ class TicketImportController extends Controller
 {
     public function index(): View
     {
-        $this->authorize('import', Ticket::class);
-
         return view('Imports::index', [
             'imports' => TicketImport::query()->with('user:id,name')->latest()->latest('id')->paginate(10),
             'columns' => [...ImportTicketRows::REQUIRED_COLUMNS, ...ImportTicketRows::OPTIONAL_COLUMNS],
@@ -35,8 +32,6 @@ class TicketImportController extends Controller
 
     public function store(StoreTicketImportRequest $request, StartTicketImport $startImport): RedirectResponse
     {
-        $this->authorize('import', Ticket::class);
-
         $import = $startImport($request->user(), $request->file('file'));
 
         return redirect()->route('admin.imports.show', $import)->with('status', __('Import queued. This page updates automatically.'));
@@ -44,16 +39,12 @@ class TicketImportController extends Controller
 
     public function show(TicketImport $import): View
     {
-        $this->authorize('import', Ticket::class);
-
         return view('Imports::show', ['import' => $import]);
     }
 
     /** Polled by the status page every 3 seconds. */
     public function status(TicketImport $import): JsonResponse
     {
-        $this->authorize('import', Ticket::class);
-
         return response()->json([
             'status' => $import->status->value,
             'finished' => $import->status->isFinished(),
@@ -70,8 +61,6 @@ class TicketImportController extends Controller
     /** Streams the row errors as CSV with cursor(): constant memory for any size. */
     public function errors(TicketImport $import): StreamedResponse
     {
-        $this->authorize('import', Ticket::class);
-
         $columns = [...ImportTicketRows::REQUIRED_COLUMNS, ...ImportTicketRows::OPTIONAL_COLUMNS];
 
         return response()->streamDownload(function () use ($import, $columns): void {
@@ -94,16 +83,12 @@ class TicketImportController extends Controller
 
     public function sample(): BinaryFileResponse
     {
-        $this->authorize('import', Ticket::class);
-
         return response()->download(resource_path('samples/ticket-import-sample.csv'), 'ticket-import-sample.csv', ['Content-Type' => 'text/csv']);
     }
 
     /** Re-queue a failed (or stuck) import; it continues from last_processed_row. */
     public function resume(Request $request, TicketImport $import): RedirectResponse
     {
-        $this->authorize('import', Ticket::class);
-
         if ($import->status === ImportStatus::Completed) {
             return back()->with('status', __('This import is already complete.'));
         }

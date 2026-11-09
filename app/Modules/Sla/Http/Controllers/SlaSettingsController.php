@@ -28,8 +28,6 @@ class SlaSettingsController extends Controller
 {
     public function index(): View
     {
-        $this->authorize('manage-sla-settings');
-
         $policies = SlaPolicy::query()->get()->keyBy(fn (SlaPolicy $policy) => $policy->priority->value);
         $hours = BusinessHour::query()->get()->keyBy('weekday');
         $defaultDays = config('support.business_hours.days');
@@ -55,8 +53,6 @@ class SlaSettingsController extends Controller
 
     public function updatePolicies(UpdateSlaPoliciesRequest $request, UpdateSlaPolicies $updatePolicies): RedirectResponse
     {
-        $this->authorize('manage-sla-settings');
-
         $updatePolicies($request->user(), $request->validated('policies'));
 
         return back()->with('status', __('SLA targets saved. New tickets use them; run sla:recalculate --open to re-apply them to active tickets.'));
@@ -64,8 +60,6 @@ class SlaSettingsController extends Controller
 
     public function updateBusinessHours(UpdateBusinessHoursRequest $request, UpdateBusinessHours $updateHours): RedirectResponse
     {
-        $this->authorize('manage-sla-settings');
-
         $updateHours($request->user(), $request->validated('days'));
 
         return back()->with('status', __('Business hours saved.'));
@@ -73,8 +67,6 @@ class SlaSettingsController extends Controller
 
     public function storeHoliday(StoreHolidayRequest $request, AddHoliday $addHoliday): RedirectResponse
     {
-        $this->authorize('manage-sla-settings');
-
         $addHoliday($request->user(), $request->validated());
 
         return back()->with('status', __('Holiday added.'));
@@ -82,8 +74,6 @@ class SlaSettingsController extends Controller
 
     public function destroyHoliday(Request $request, Holiday $holiday, RemoveHoliday $removeHoliday): RedirectResponse
     {
-        $this->authorize('manage-sla-settings');
-
         $removeHoliday($request->user(), $holiday);
 
         return back()->with('status', __('Holiday removed.'));

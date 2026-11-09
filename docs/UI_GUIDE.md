@@ -119,8 +119,8 @@ The same ticket, TKT-2026-000026, from Rashed's side:
 > **What the customer does *not* see.** Compare this with the agent's view in section 4. Nusrat's
 > **internal note** ("Mobile app v3.2 sends quantity with the wrong sign…") is missing here, and the activity
 > list has only 2 entries instead of 8: internal staff steps (assignment, internal notes, SLA warnings, breaches
-> and escalations) are hidden from customers. Internal notes never reach a customer: not on the page, in the
-> JSON, in emails or in the timeline.
+> and escalations) are hidden from customers. Internal notes never reach a customer: not on the page, in
+> emails or in the timeline.
 
 ---
 
@@ -197,7 +197,7 @@ The same ticket as in section 3, now from Nusrat's side. What is extra for staff
 This is the audit trail from the specification: every important change, who made it and when. It cannot be
 edited or deleted.
 
-**Edit** (top right) changes the subject and description. Admins can also change priority and category; a priority
+**Edit** (top right) changes the subject and description. The assigned agent and admins can also change priority and category; a priority
 change recalculates the deadline.
 
 ### My tickets

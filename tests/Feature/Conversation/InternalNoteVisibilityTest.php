@@ -49,21 +49,17 @@ it('never shows the internal note in the customer page', function () {
         ->assertDontSee('Internal note');
 });
 
-it('never includes the internal note in the customer JSON', function () {
-    $response = $this->actingAs($this->customer)->getJson(route('tickets.show', $this->ticket))->assertOk();
-
-    expect($response->getContent())->not->toContain(MARKER)
-        ->and(collect($response->json('data.replies'))->pluck('type')->unique()->all())->toBe(['public']);
-});
-
 it('hides internal activity from the customer timeline but keeps the public story', function () {
-    $response = $this->actingAs($this->customer)->getJson(route('tickets.show', $this->ticket));
-    $types = collect($response->json('data.activity'))->pluck('type');
+    $visible = $this->ticket->activitiesVisibleTo($this->customer)->pluck('type');
 
-    expect($types)->toContain(ActivityType::CustomerReplied->value, ActivityType::AgentReplied->value)
-        ->and($types)->not->toContain(ActivityType::InternalNoteAdded->value)
-        ->and($types)->not->toContain(ActivityType::Assigned->value)
-        ->and($response->getContent())->not->toContain(MARKER);
+    expect($visible)->toContain(ActivityType::CustomerReplied, ActivityType::AgentReplied)
+        ->and($visible)->not->toContain(ActivityType::InternalNoteAdded)
+        ->and($visible)->not->toContain(ActivityType::Assigned);
+
+    $this->actingAs($this->customer)
+        ->get(route('tickets.show', $this->ticket))
+        ->assertDontSee('Internal note added')
+        ->assertDontSee(MARKER);
 });
 
 it('never sends the internal note to the customer by notification or mail', function () {
@@ -91,14 +87,11 @@ it('shows the note and its activity to staff', function () {
         ->get(route('tickets.show', $this->ticket))
         ->assertSee(MARKER)
         ->assertSee('Internal note added');
-
-    $json = $this->actingAs($this->agent)->getJson(route('tickets.show', $this->ticket));
-    expect($json->getContent())->toContain(MARKER);
 });
 
-it('never exposes storage paths in the JSON', function () {
-    $json = $this->actingAs($this->agent)->getJson(route('tickets.show', $this->ticket))->getContent();
+it('never exposes storage paths on the ticket page', function () {
+    $page = $this->actingAs($this->agent)->get(route('tickets.show', $this->ticket))->getContent();
 
-    expect($json)->not->toContain('tickets/'.$this->ticket->id.'/')
-        ->and($json)->toContain('/download');
+    expect($page)->not->toContain('tickets/'.$this->ticket->id.'/')
+        ->and($page)->toContain('/download');
 });

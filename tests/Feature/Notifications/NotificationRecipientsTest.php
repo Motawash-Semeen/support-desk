@@ -11,8 +11,9 @@ use App\Modules\Notifications\Notifications\InternalNoteAddedNotification;
 use App\Modules\Notifications\Notifications\TicketAssignedNotification;
 use App\Modules\Notifications\Notifications\TicketCreatedNotification;
 use App\Modules\Notifications\Notifications\TicketResolvedNotification;
+use App\Modules\Tickets\Actions\ChangeTicketStatus;
 use App\Modules\Tickets\Actions\CreateTicket;
-use App\Modules\Tickets\Actions\ResolveTicket;
+use App\Modules\Tickets\Enums\TicketStatus;
 use App\Modules\Tickets\Models\Category;
 use App\Modules\Tickets\Models\Ticket;
 use Illuminate\Support\Facades\DB;
@@ -122,7 +123,7 @@ it('routes a customer reply to the assignee, or to admins while unassigned', fun
 it('tells the customer when their ticket is resolved', function () {
     app(ClaimTicket::class)($this->ticket, $this->billingAgent, $this->billingAgent);
 
-    app(ResolveTicket::class)($this->billingAgent, $this->ticket);
+    app(ChangeTicketStatus::class)($this->billingAgent, $this->ticket, TicketStatus::Resolved);
 
     Notification::assertSentTo($this->customer, TicketResolvedNotification::class);
     Notification::assertNotSentTo($this->billingAgent, TicketResolvedNotification::class);

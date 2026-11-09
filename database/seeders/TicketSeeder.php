@@ -15,10 +15,7 @@ use App\Modules\Sla\Services\BusinessCalendar;
 use App\Modules\Sla\Services\SlaCalculator;
 use App\Modules\Sla\Services\SlaPolicyRepository;
 use App\Modules\Tickets\Actions\ChangeTicketStatus;
-use App\Modules\Tickets\Actions\CloseTicket;
 use App\Modules\Tickets\Actions\CreateTicket;
-use App\Modules\Tickets\Actions\ReopenTicket;
-use App\Modules\Tickets\Actions\ResolveTicket;
 use App\Modules\Tickets\Actions\UpdateTicket;
 use App\Modules\Tickets\Enums\TicketPriority;
 use App\Modules\Tickets\Enums\TicketStatus;
@@ -274,9 +271,9 @@ class TicketSeeder extends Seeder
             'reply' => app(AddReply::class)($event['payload']['from'] === 'agent' ? $agent() : $customer, $ticket(), $event['payload']['text'], ReplyType::Public),
             'note' => app(AddReply::class)($agent(), $ticket(), $sample['note'], ReplyType::InternalNote),
             'waiting' => app(ChangeTicketStatus::class)($agent(), $ticket(), TicketStatus::WaitingForCustomer),
-            'resolve' => app(ResolveTicket::class)($agent(), $ticket()),
-            'close' => app(CloseTicket::class)(null, $ticket()),
-            'reopen' => app(ReopenTicket::class)($customer, $ticket()),
+            'resolve' => app(ChangeTicketStatus::class)($agent(), $ticket(), TicketStatus::Resolved),
+            'close' => app(ChangeTicketStatus::class)(null, $ticket(), TicketStatus::Closed),
+            'reopen' => app(ChangeTicketStatus::class)($customer, $ticket(), TicketStatus::reopenTarget()),
             'reassign' => app(AssignTicket::class)($admin, $ticket(), $this->user(UserSeeder::AGENTS[$sample['reassign']][1]), $agent()->getKey()),
             default => throw new RuntimeException("Unknown step [{$event['type']}]."),
         };

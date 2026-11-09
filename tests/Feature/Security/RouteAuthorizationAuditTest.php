@@ -20,7 +20,7 @@ function routeKey(RoutingRoute $route): string
  *     in the controller action: $this->authorize / Gate::authorize|allows|denies /
  *     ->can( / ->cannot( / a FormRequest whose authorize() does real work);
  *   - behind `auth` AND on the reviewed SELF_SERVICE list (acts only on the
- *     signed-in user's own account, so there is nothing to authorize against).
+ *     signed-in user's own data, or is open to every signed-in user).
  * Adding a route without any of these fails the build until someone reviews it.
  */
 
@@ -49,6 +49,12 @@ const SELF_SERVICE_ROUTES = [
     'verification.verify' => 'Signed URL for own email',
     'verification.send' => 'Resend own verification email (throttled)',
     'logout' => 'Ends own session',
+    'notifications.index' => 'Own notifications only ($request->user()->notifications())',
+    'notifications.read' => 'Own notifications only; another user\'s id is a 404',
+    'notifications.read-all' => 'Own notifications only',
+    'tickets.index' => 'Every user may list tickets; the list is limited to what they may see (TicketFilter / visibleTo)',
+    'tickets.create' => 'Every signed-in user may open a ticket (form)',
+    'tickets.store' => 'Every signed-in user may open a ticket (rate limited)',
 ];
 
 function actionAuthorizes(RoutingRoute $route): bool
@@ -110,9 +116,9 @@ test('every authenticated route is authorized by role middleware, a policy check
     expect($unprotected)->toBe([], "Routes without detectable authorization:\n".implode("\n", $unprotected));
 });
 
-test('every ticket and admin action calls the policy even behind role middleware', function () {
+test('every action on one ticket or attachment asks the policy, even behind role middleware', function () {
     $missing = collect(Route::getRoutes())
-        ->filter(fn ($route) => str_starts_with((string) $route->getName(), 'tickets.') || str_starts_with((string) $route->getName(), 'admin.') || $route->getName() === 'attachments.download')
+        ->filter(fn ($route) => str_contains($route->uri(), '{ticket}') || $route->getName() === 'attachments.download')
         ->reject(fn ($route) => actionAuthorizes($route))
         ->map(fn ($route) => $route->getName().' -> '.$route->getActionName())
         ->values()

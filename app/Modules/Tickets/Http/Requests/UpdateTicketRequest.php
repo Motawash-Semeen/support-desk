@@ -30,10 +30,10 @@ class UpdateTicketRequest extends FormRequest
         return [
             'subject' => ['sometimes', 'required', 'string', 'max:255'],
             'description' => ['sometimes', 'required', 'string', 'max:10000'],
-            'priority' => $user->can('changePriority', $ticket)
+            'priority' => $user->can('work', $ticket)
                 ? ['sometimes', 'required', Rule::enum(TicketPriority::class)]
                 : ['prohibited'],
-            'category_id' => $user->can('changeCategory', $ticket)
+            'category_id' => $user->can('work', $ticket)
                 ? ['sometimes', 'required', 'integer', Rule::exists('categories', 'id')->where('is_active', true)]
                 : ['prohibited'],
         ];

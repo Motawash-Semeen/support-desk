@@ -16,8 +16,6 @@ class NotificationController extends Controller
 {
     public function index(Request $request): View
     {
-        $this->authorize('use-notifications');
-
         return view('Notifications::index', [
             'notifications' => $request->user()->notifications()->latest()->paginate(20),
         ]);
@@ -25,8 +23,6 @@ class NotificationController extends Controller
 
     public function markRead(Request $request, string $notification): RedirectResponse
     {
-        $this->authorize('use-notifications');
-
         $found = $request->user()->notifications()->whereKey($notification)->firstOrFail();
         $found->markAsRead();
 
@@ -44,8 +40,6 @@ class NotificationController extends Controller
 
     public function markAllRead(Request $request): RedirectResponse
     {
-        $this->authorize('use-notifications');
-
         $request->user()->unreadNotifications()->update(['read_at' => now()]);
 
         return back()->with('status', __('All notifications marked as read.'));

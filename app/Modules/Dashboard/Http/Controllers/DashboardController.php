@@ -16,8 +16,6 @@ class DashboardController extends Controller
 {
     public function __invoke(Request $request, DashboardStatsService $stats): View
     {
-        $this->authorize('view-dashboard');
-
         return view('Dashboard::index', [
             'stats' => $stats->for($request->user()),
         ]);
