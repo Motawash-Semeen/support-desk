@@ -39,7 +39,7 @@ class TicketController extends Controller
         $filter = new TicketFilter($user, $request->validated());
 
         // Deferred join: COUNT + page of ids from the covering indexes, then list
-        // columns and three eager loads for the 15 rows shown (docs/PERFORMANCE.md).
+        // columns and three eager loads for the 15 rows shown (docs/DEVELOPER_GUIDE.md).
         $tickets = DeferredPagination::paginate(
             $filter->apply(Ticket::query()),
             15,

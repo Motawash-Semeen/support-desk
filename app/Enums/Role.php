@@ -17,7 +17,10 @@ enum Role: string
         };
     }
 
-    /** Staff can see and work on every ticket; customers only their own. */
+    /**
+     * Admins and agents: they get the staff screens and see internal notes.
+     * Which tickets each one may open is decided by TicketPolicy.
+     */
     public function isStaff(): bool
     {
         return $this !== self::Customer;

@@ -66,7 +66,7 @@ class ScanSla extends Command
 
     /**
      * Candidate ids come from the SLA range indexes (index-only, see
-     * docs/PERFORMANCE.md). Deliberately no ORDER BY id / chunkById: that made
+     * docs/DEVELOPER_GUIDE.md). Deliberately no ORDER BY id / chunkById: that made
      * the optimizer walk the primary key over the whole table every minute.
      * Ids are small, so collecting a pass's candidates at once is cheap; jobs
      * are dispatched in --chunk sized batches in id order.

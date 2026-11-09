@@ -64,7 +64,7 @@ final class DashboardStatsService
 
     /**
      * Two aggregate queries instead of one pass over the whole table (measured
-     * on 100k tickets, docs/PERFORMANCE.md): the cost follows the open backlog,
+     * on 100k tickets, docs/DEVELOPER_GUIDE.md): the cost follows the open backlog,
      * not the history.
      *  - active counters: WHERE status IN (active), answered from
      *    tickets_dashboard_cover_index alone (status, priority, assignee,

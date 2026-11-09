@@ -18,7 +18,7 @@ final class SetAgentAvailability
             throw new InvalidArgumentException('Only agents have an availability setting.');
         }
 
-        // is_available is not mass assignable by design (D-026).
+        // is_available is not mass assignable by design.
         $agent->forceFill(['is_available' => $available])->save();
 
         Log::info('Agent availability changed.', ['agent_id' => $agent->id, 'is_available' => $available]);

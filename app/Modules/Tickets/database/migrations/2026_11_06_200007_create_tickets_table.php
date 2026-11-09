@@ -41,7 +41,7 @@ return new class extends Migration
             $table->timestamps();
 
             // Each index covers the queries it serves, so they are answered from the
-            // index alone (measured on 100k tickets: docs/PERFORMANCE.md, D-024, D-128).
+            // index alone (measured on 100k tickets: docs/DEVELOPER_GUIDE.md).
             // Laravel's generated name for the two long ones would pass MySQL's 64-character limit.
             $table->index(['status', 'due_at', 'breached_notified_at']);                    // active lists by due date; sla:scan breach pass
             $table->index(['status', 'sla_warning_at', 'due_at', 'warning_notified_at']);   // "at risk" filter; sla:scan warning pass

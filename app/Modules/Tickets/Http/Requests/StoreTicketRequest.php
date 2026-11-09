@@ -10,7 +10,7 @@ use Illuminate\Validation\Rule;
 class StoreTicketRequest extends FormRequest
 {
     /**
-     * Customers may pick any priority (D-047); staff can change it later and
+     * Customers may pick any priority; staff can change it later and
      * every change is recorded in the activity log.
      */
     public function rules(): array

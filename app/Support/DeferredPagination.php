@@ -11,7 +11,7 @@ use Illuminate\Pagination\LengthAwarePaginator;
  * Pagination as a "deferred join": page through primary keys first, then load
  * full rows for that page only.
  *
- * Why (measured on 100k tickets, docs/PERFORMANCE.md): a list query selects
+ * Why (measured on 100k tickets, docs/DEVELOPER_GUIDE.md): a list query selects
  * display columns no index contains, so the engine had to read a full row for
  * every candidate before it could sort and keep 15 (an 83-second cold read for
  * "SLA approaching", a full table scan for the closed list). The id query is

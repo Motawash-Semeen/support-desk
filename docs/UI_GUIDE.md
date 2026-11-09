@@ -4,7 +4,7 @@ A tour of every screen, with screenshots taken from the app running on the sampl
 (`php artisan migrate:fresh --seed`). It shows what each role sees, what every number and badge means, and
 how a ticket moves from "opened" to "closed".
 
-For how the code behind these screens works, see [CODE_GUIDE.md](CODE_GUIDE.md).
+For how the code behind these screens works, see [DEVELOPER_GUIDE.md](DEVELOPER_GUIDE.md).
 
 **Contents**
 
