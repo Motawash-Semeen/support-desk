@@ -1295,23 +1295,259 @@ New decisions go at the end of the matching group.
 
 ## 8. Tests and quality checks
 
-```bash
-php artisan test                           # MySQL support_desk_testing if reachable, else SQLite in memory
-DB_TEST_CONNECTION=sqlite php artisan test # force SQLite (no setup, about 30 s)
-php artisan test tests/Feature/Sla         # one area
-php artisan test --filter="internal note"  # by name
-vendor/bin/pint                            # fix code style
-vendor/bin/phpstan analyse                 # static analysis
+### 8.1 How the tests are organised
+
+```
+tests/
+  TestCase.php       the base class every test uses (frozen clock, fakes; see below)
+  Pest.php           wires TestCase in, adds RefreshDatabase to Feature tests, custom helpers
+  Unit/              pure logic, no HTTP: BusinessCalendar, enums, CSV reader, ArchitectureTest
+  Feature/<Area>/    one folder per feature, mostly real HTTP requests:
+                     Tickets, Assignment, Conversation, Sla, Notifications, Search, Dashboard,
+                     Import, Activity, Logs, Authorization, Security, Database, Bootstrap, EndToEnd
+  Concurrency/       20 real processes racing to accept one ticket (MySQL only)
 ```
 
-- `tests/Feature/<Area>` matches the modules (Tickets, Assignment, Conversation, Sla, Notifications, Search,
-  Dashboard, Import, Activity, Logs) plus Authorization, Security, Database, Bootstrap and EndToEnd.
-- `tests/Unit` holds pure logic (calendar maths, enums, CSV reader) and `ArchitectureTest.php` (the layer
-  rules).
-- `tests/Concurrency` races 20 real processes for one ticket (MySQL only).
-- Every test runs at a frozen time (Mon 2026-11-09 10:00 Dhaka, `tests/TestCase.php`); mail, storage and outside
-  HTTP are faked.
-- CI (`.github/workflows/tests.yml`) runs Pint, Larastan and every test on MySQL 8 on every push.
+**What every test gets for free** (`tests/TestCase.php`):
+
+- **A frozen clock:** "now" is always Mon 2026-11-09 10:00 in Dhaka, so deadline tests give the same answer on
+  any day. Use `$this->travelTo(...)` to move it.
+- **A clean database:** each test runs in a transaction that is rolled back afterwards (`RefreshDatabase`).
+- **Fake file storage** (`Storage::fake('private')`), **no real outside HTTP calls**, mail kept in memory.
+- **Queues run immediately** (the `sync` driver), so listeners and notifications actually run inside the test.
+
+### 8.2 Running tests
+
+```bash
+php artisan test                                   # everything (MySQL if reachable, else SQLite)
+DB_TEST_CONNECTION=sqlite php artisan test         # force SQLite: no setup, about 30 s
+php artisan test --parallel                        # faster on many cores
+php artisan test tests/Feature/Tickets             # one folder
+php artisan test tests/Feature/Tickets/TicketHttpTest.php   # one file
+php artisan test --filter="resolve"                # every test whose name contains "resolve"
+php artisan test --stop-on-failure                 # stop at the first failure
+```
+
+**Reading a failure:** Pest prints the test name, the expected and actual values, and the file and line
+(`at tests/Feature/...php:42`). Open that line first. "Expected status 200 but received 404" usually means
+permission (the user may not see that ticket); "302" means a redirect (often validation errors: add
+`->assertSessionHasNoErrors()` to see them).
+
+### 8.3 Anatomy of a test, line by line
+
+From `tests/Feature/Tickets/TicketHttpTest.php`:
+
+```php
+beforeEach(function () {
+    config(['support.assignment.auto_on_create' => false]);
+```
+Runs before **each** test in the file. Turning auto-assignment off keeps these tests about ticket CRUD only.
+
+```php
+    $this->customer = User::factory()->create();
+    $this->agent = User::factory()->agent()->create();
+    $this->admin = User::factory()->admin()->create();
+```
+**Factories** create real database rows with fake data. `agent()` and `admin()` are factory **states**
+(preset variations). A plain `create()` makes a customer.
+
+```php
+});
+
+it('lets the assigned agent resolve, the customer close, and the customer reopen', function () {
+```
+`it('…')` (or `test('…')`) defines one test. The name says what behaviour it proves.
+
+```php
+    $ticket = Ticket::factory()->for($this->customer, 'creator')->inProgress()->assigned($this->agent)->create();
+```
+**Arrange:** a ticket created by our customer (`for(..., 'creator')`), in progress, assigned to our agent.
+
+```php
+    $this->actingAs($this->agent)
+        ->post(route('tickets.status', $ticket), ['status' => 'resolved', 'reason' => 'Fixed'])
+        ->assertRedirect(route('tickets.show', $ticket));
+```
+**Act:** sign in as the agent (`actingAs`) and post to the status endpoint, exactly like the Resolve button.
+**Assert:** we're redirected back to the ticket page.
+
+```php
+    expect($ticket->fresh()->status)->toBe(TicketStatus::Resolved);
+```
+**Assert the result in the database:** `fresh()` reloads the ticket; the status must now be Resolved.
+
+**Datasets** run one test several times with different inputs:
+
+```php
+it('lets every role open the create form', function (string $who) {
+    $this->actingAs($this->{$who})->get(route('tickets.create'))->assertOk();
+})->with(['customer', 'agent', 'admin']);
+```
+This becomes three tests: one per role.
+
+### 8.4 Creating a new test
+
+1. **Pick the place:** a behaviour over HTTP goes in `tests/Feature/<Area>/`; pure logic without the database
+   goes in `tests/Unit/`. Usually add to an existing file in the right folder (copy a neighbouring test).
+2. **Or generate a new file:**
+   ```bash
+   php artisan make:test Tickets/MyRuleTest --pest          # creates tests/Feature/Tickets/MyRuleTest.php
+   php artisan make:test Sla/MyCalendarTest --pest --unit   # creates tests/Unit/Sla/MyCalendarTest.php
+   ```
+3. **Write it as Arrange, Act, Assert**, and **watch it fail first** (run it before changing the code). A test
+   that never failed may not be testing anything.
+4. **Run just that file**, then the whole suite.
+
+**Template: an HTTP feature test**
+
+```php
+<?php
+
+use App\Models\User;
+use App\Modules\Tickets\Models\Ticket;
+
+it('does not let a customer resolve their own ticket', function () {
+    $customer = User::factory()->create();
+    $ticket = Ticket::factory()->for($customer, 'creator')->inProgress()->create();
+
+    $this->actingAs($customer)
+        ->post(route('tickets.status', $ticket), ['status' => 'resolved'])
+        ->assertForbidden();                                   // 403
+
+    expect($ticket->fresh()->status->value)->toBe('in_progress');
+});
+```
+
+**Template: testing an action directly** (faster, no HTTP)
+
+```php
+use App\Modules\Tickets\Actions\ChangeTicketStatus;
+use App\Modules\Tickets\Enums\TicketStatus;
+
+it('sets resolved_at when a ticket is resolved', function () {
+    $agent = User::factory()->agent()->create();
+    $ticket = Ticket::factory()->assigned($agent)->inProgress()->create();
+
+    $resolved = app(ChangeTicketStatus::class)($agent, $ticket, TicketStatus::Resolved);
+
+    expect($resolved->resolved_at)->not->toBeNull();
+});
+```
+
+**Template: a permission rule.** Add or change a row in
+`tests/Feature/Authorization/TicketPolicyMatrixTest.php`. Each row is one ability for one ticket state; the five
+letters are the answers for admin, assignee, another agent, the owner and another customer (**A**llowed,
+**D**enied 403, **N**ot found 404, **-** not applicable):
+
+```php
+'in_progress' => [
+    'work' => 'A A N D N',      // admin yes, assignee yes, other agent 404, owner 403, other customer 404
+```
+
+**Template: a unit test for pure logic**
+
+```php
+use App\Modules\Sla\Services\BusinessCalendar;
+
+it('skips the weekend', function () {
+    $calendar = /* build one, see tests/Unit/Sla/BusinessCalendarTest.php for the helper */;
+    $due = $calendar->addBusinessMinutes(CarbonImmutable::parse('2026-11-05 17:00', 'Asia/Dhaka'), 120);
+
+    expect($due->setTimezone('Asia/Dhaka')->format('D H:i'))->toBe('Sun 10:00');
+});
+```
+
+### 8.5 Changing an existing test
+
+1. **Find it:** `php artisan test --filter="part of the name"`, or search the `tests/` folder for the route
+   name, ability or class you changed (`tickets.status`, `'work'`, `ChangeTicketStatus`).
+2. **Change the code first, run the tests, and read what fails.** The failures show every place that relied on
+   the old behaviour.
+3. **Decide for each failure:** is the test now wrong (the rule changed on purpose, so update the expectation),
+   or is the code wrong (you broke something, so fix the code)? Never change an expectation just to make it
+   green without understanding why it failed.
+4. **Update the name too** if the behaviour changed ("forbids…" → "returns 404 for…").
+5. Run the whole suite, then `vendor/bin/pint` and `vendor/bin/phpstan analyse`.
+
+### 8.6 Toolbox
+
+| You want to… | Use |
+|---|---|
+| make users | `User::factory()->create()` (customer), `->agent()`, `->admin()`, `->unavailable()`, `->unverified()` |
+| make tickets | `Ticket::factory()` with `->for($user, 'creator')`, `->assigned($agent)`, `->unassigned()`, `->inProgress()`, `->waitingForCustomer()`, `->resolved()`, `->closed()`, `->critical()`, `->high()`, `->low()`, `->onTrack()`, `->approaching()`, `->breached()`, `->escalated()` |
+| make replies | `TicketReply::factory()->for($ticket)`, `->internalNote()` |
+| sign in | `$this->actingAs($user)` |
+| check a response | `->assertOk()` 200, `->assertForbidden()` 403, `->assertNotFound()` 404, `->assertRedirect($url)`, `->assertSee('text')`, `->assertDontSee('text')`, `->assertSessionHasErrors('field')` |
+| check values | `expect($x)->toBe(...)`, `->toBeTrue()`, `->toBeNull()`, `->toHaveCount(3)`, `->toContain(...)`, `->not->...` |
+| check the database | `$this->assertDatabaseHas('tickets', ['id' => $t->id, 'status' => 'closed'])` |
+| move time | `$this->travelTo(CarbonImmutable::parse('2026-11-05 11:00', 'UTC'))`, `$this->travel(3)->days()` |
+| check notifications | `Notification::fake();` then `Notification::assertSentTo($user, TicketResolvedNotification::class)` |
+| check queued jobs / events | `Queue::fake();` `Queue::assertPushed(AutoAssignTicket::class)`; `Event::fake([TicketResolved::class])` |
+| change a setting for one test | `config(['support.auto_close_resolved_after_days' => 5]);` |
+
+### 8.7 Practice changes
+
+These are the kinds of small changes worth rehearsing. Each lists where to look, what to change and how to test
+it. Try them on a branch, then throw the branch away.
+
+**1. Change a business rule: resolved tickets close after 5 days instead of 3.**
+- *Where:* `config/support.php` → `auto_close_resolved_after_days` (or `SUPPORT_AUTO_CLOSE_RESOLVED_DAYS` in `.env`).
+- *Change:* the default `3` → `5`.
+- *Test:* find the auto-close tests (`php artisan test --filter="auto-close"` or search `auto-close-resolved`),
+  update the expected number of days, and check `tests/Feature/Bootstrap/ConfigurationTest.php` if it asserts the
+  default.
+
+**2. Change a business rule: customers can't choose "critical" priority.**
+- *Where:* `app/Modules/Tickets/Http/Requests/StoreTicketRequest.php` (the `priority` rule).
+- *Change:* for customers, allow only low, medium and high, for example
+  `Rule::in($this->user()->isStaff() ? [all values] : ['low', 'medium', 'high'])`. Hide "Critical" in
+  `resources/views/partials/form.blade.php` for customers too.
+- *Test:* in `tests/Feature/Tickets/TicketHttpTest.php`, post the create form as a customer with
+  `'priority' => 'critical'` and `->assertSessionHasErrors('priority')`; post as an agent and assert it works.
+
+**3. Change authorization: only admins may reopen resolved tickets.**
+- *Where:* `TicketPolicy::reopen()`.
+- *Change:* `TicketStatus::Resolved => $user->isAdmin(),`.
+- *Test:* update the `reopen` rows for `resolved` in the policy matrix test (assignee and owner become `D`), then
+  run `php artisan test tests/Feature/Authorization tests/Feature/Tickets` and fix the HTTP tests that expected
+  customers to reopen (read each failure: they are now wrong on purpose). Rehearsed: the policy change alone
+  makes exactly 4 tests fail: 2 matrix cases (assignee and owner on a resolved ticket) and 2 tests in
+  `TicketHttpTest` ("…the customer reopen" and "requires the ability that matches the target status").
+
+**4. Change authorization: any agent may write internal notes on a queue ticket.**
+- *Where:* `TicketPolicy` (internal notes use `work`). Add a separate ability, for example `addNote`, that allows
+  admins, the assignee, and agents on an active unassigned ticket; use it in `StoreReplyRequest::authorize()` and
+  in `reply-form.blade.php` instead of `work` for notes.
+- *Test:* add an `addNote` row to the matrix; add an HTTP test posting a note as an unassigned agent on a queue
+  ticket (200/redirect) and on someone else's ticket (404).
+
+**5. Improve a query: avoid loading each ticket's category one by one in a new list.**
+- *Symptom:* a loop in a view calls `$ticket->category->name`; in tests this **throws** (strict mode stops lazy
+  loading), in production it runs one query per row (N+1).
+- *Fix:* load the relation with the query: `->with('category:id,name')` (see `Ticket::scopeWithListRelations()`).
+- *Test:* the page test fails with a lazy-loading error before the fix and passes after; for proof of constant
+  query counts see `tests/Feature/Database` (3 rows and 30 rows cost the same number of queries).
+
+**6. Fix an issue: suppose a customer could see an internal note.**
+- *Where to look:* `Ticket::repliesVisibleTo()` and `activitiesVisibleTo()` (the single switch), `TicketPolicy::viewInternalNotes()`,
+  `StoreReplyRequest::replyType()`.
+- *Test first:* write a test that creates an internal note, signs in as the customer, opens the ticket and
+  `->assertDontSee('the note text')`. It fails; fix the switch; it passes. (Existing examples:
+  `tests/Feature/Conversation/InternalNoteVisibilityTest.php`.)
+
+**Before you say "done":** `php artisan test` (or the affected folders), `vendor/bin/pint`, and
+`vendor/bin/phpstan analyse`.
+
+### 8.8 Quality checks and CI
+
+```bash
+vendor/bin/pint            # fix code style (pint --test only checks)
+vendor/bin/phpstan analyse # static analysis: type errors without running the code
+```
+
+CI (`.github/workflows/tests.yml`) runs Pint, Larastan and every test on MySQL 8 on every push. The
+architecture test (`tests/Unit/ArchitectureTest.php`) also checks the layer rules: controllers never use the
+database directly, actions and services never touch HTTP classes, and no debug calls (`dd`, `dump`) are left.
 
 ---
 
