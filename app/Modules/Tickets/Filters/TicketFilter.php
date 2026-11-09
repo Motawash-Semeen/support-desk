@@ -46,6 +46,11 @@ final class TicketFilter
     {
         $query->visibleTo($this->user);
 
+        // An agent's list holds only their own tickets; unassigned ones are in the queue.
+        if ($this->user->isAgent()) {
+            $query->where('assigned_agent_id', $this->user->getKey());
+        }
+
         $this->keyword($query);
         $this->scope($query);
         $this->statuses($query);
@@ -53,8 +58,11 @@ final class TicketFilter
         $this->category($query);
         $this->createdRange($query);
 
+        if ($this->user->isAdmin()) {
+            $this->assignee($query); // agents only ever list their own tickets
+        }
+
         if ($this->user->isStaff()) {
-            $this->assignee($query);
             $this->customer($query);
             $this->slaStatus($query);
             $this->escalated($query);

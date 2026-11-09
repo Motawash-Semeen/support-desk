@@ -37,6 +37,6 @@ it('follows the ticket view rule and hides internal-note files from customers', 
     'other customer, ticket file' => ['customer', 5, null, 404],
     'other customer, internal note file' => ['customer', 5, ReplyType::InternalNote, 404],
     'assignee, internal note file' => ['agent', 2, ReplyType::InternalNote, null],
-    'other agent, internal note file' => ['agent', 3, ReplyType::InternalNote, null],
+    'other agent, internal note file' => ['agent', 3, ReplyType::InternalNote, 404], // not their ticket
     'admin, internal note file' => ['admin', 1, ReplyType::InternalNote, null],
 ]);

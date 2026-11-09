@@ -235,14 +235,30 @@ class Ticket extends Model
     }
 
     /**
-     * Row-level visibility: customers see only tickets they created, staff see all.
-     * Served by tickets_created_by_created_at_index for customers.
+     * Row-level visibility (the same rule as TicketPolicy::view):
+     *  - admins: every ticket;
+     *  - agents: tickets assigned to them (any status), plus active unassigned
+     *    tickets, which they may open from the queue before accepting;
+     *  - customers: tickets they created.
+     * Served by tickets_agent_cover_index / tickets_created_by_created_at_status_index.
      */
     public function scopeVisibleTo(Builder $query, User $user): void
     {
-        if (! $user->isStaff()) {
-            $query->where('created_by', $user->getKey());
+        if ($user->isAdmin()) {
+            return;
         }
+
+        if ($user->isAgent()) {
+            $query->where(fn (Builder $visible) => $visible
+                ->where('assigned_agent_id', $user->getKey())
+                ->orWhere(fn (Builder $queue) => $queue
+                    ->whereNull('assigned_agent_id')
+                    ->whereIn('status', TicketStatus::activeValues())));
+
+            return;
+        }
+
+        $query->where('created_by', $user->getKey());
     }
 
     /** Any SLA status, with the same rules as slaStatus() (SlaStatusResolver). */

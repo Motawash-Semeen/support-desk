@@ -4,7 +4,9 @@ namespace App\Modules\Tickets\Http\Requests;
 
 use App\Modules\Tickets\Enums\TicketStatus;
 use App\Modules\Tickets\Models\Ticket;
+use Illuminate\Auth\Access\Response;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 
 /**
@@ -14,12 +16,14 @@ use Illuminate\Validation\Rule;
  */
 class ChangeTicketStatusRequest extends FormRequest
 {
-    public function authorize(): bool
+    /** The policy's full answer, so a ticket the user may not see stays a 404. */
+    public function authorize(): Response
     {
         $to = TicketStatus::tryFrom((string) $this->input('status'));
+        $ticket = $this->route('ticket');
 
-        // Unknown value: let validation answer with a 422.
-        return $to === null || $this->user()->can(self::abilityFor($this->route('ticket'), $to), $this->route('ticket'));
+        // Unknown value: still check that the ticket is visible, then let validation answer with a 422.
+        return Gate::forUser($this->user())->inspect($to === null ? 'view' : self::abilityFor($ticket, $to), $ticket);
     }
 
     public function rules(): array

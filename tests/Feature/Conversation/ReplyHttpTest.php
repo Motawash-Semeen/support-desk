@@ -55,8 +55,15 @@ it('lets the assigned agent add an internal note', function () {
     expect(TicketReply::query()->sole()->type)->toBe(ReplyType::InternalNote);
 });
 
-it('forbids an agent who is not assigned from replying or noting', function (string $type) {
-    $this->actingAs($this->otherAgent)->post($this->url, ['body' => 'x', 'type' => $type])->assertForbidden();
+it('returns 404 to an agent the ticket is not assigned to', function (string $type) {
+    $this->actingAs($this->otherAgent)->post($this->url, ['body' => 'x', 'type' => $type])->assertNotFound();
+})->with(['public', 'internal_note']);
+
+it('lets an agent open a queue ticket but not reply before accepting it', function (string $type) {
+    $queued = Ticket::factory()->for($this->customer, 'creator')->unassigned()->create();
+
+    $this->actingAs($this->otherAgent)->get(route('tickets.show', $queued))->assertOk();
+    $this->actingAs($this->otherAgent)->post(route('tickets.replies.store', $queued), ['body' => 'x', 'type' => $type])->assertForbidden();
 })->with(['public', 'internal_note']);
 
 it('returns 404 to another customer', function () {

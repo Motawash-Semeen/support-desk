@@ -6,7 +6,7 @@ order in which decisions were made, not their importance. Superseded entries are
 
 | Area | Entries |
 |---|---|
-| [Foundation and stack](#foundation-and-stack) | D-001, D-002, D-003, D-004, D-005, D-006, D-007, D-008, D-011, D-012, D-013, D-015, D-043, D-126, D-127, D-129, D-130, D-131, D-132, D-133, D-134, D-135, D-136, D-137, D-138 |
+| [Foundation and stack](#foundation-and-stack) | D-001, D-002, D-003, D-004, D-005, D-006, D-007, D-008, D-011, D-012, D-013, D-015, D-043, D-126, D-127, D-129, D-130, D-131, D-132, D-133, D-134, D-135, D-136, D-137, D-138, D-139, D-140 |
 | [Database](#database) | D-016, D-017, D-018, D-019, D-020, D-021, D-022, D-023, D-024, D-025, D-027, D-028, D-030, D-031, D-055 |
 | [Authorization and security](#authorization-and-security) | D-026, D-032, D-033, D-034, D-035, D-036, D-037, D-038, D-039, D-040, D-041, D-042, D-051, D-120, D-122, D-123, D-124, D-125 |
 | [Tickets and lifecycle](#tickets-and-lifecycle) | D-044, D-045, D-046, D-029, D-047, D-048, D-049, D-052, D-053, D-054 |
@@ -245,6 +245,26 @@ order in which decisions were made, not their importance. Superseded entries are
 - **Why this one:** Requested ("simplify"). Round-robin existed only to show that the switch worked, and nothing ever selected it, so the interface, the config map and the factory closure were indirection without a second real use.
 - **Trade-off:** A different assignment rule now means editing `LeastWorkloadStrategy` (or reintroducing an interface) instead of changing one setting.
 
+### D-139 A UI guide with screenshots and a plain-language code guide
+- **Decision:** `docs/GUIDE.md` was replaced by two guides.
+  - `docs/UI_GUIDE.md` tours every screen per role (customer, agent, admin, phone) with 17 screenshots in `docs/images/ui/`, taken from the sample data. It explains every number on the screenshots, follows one ticket's life step by step, and ends with a glossary.
+  - `docs/CODE_GUIDE.md` explains every module, controller (method by method, with its URL), form request, action, service, model, job, command, listener and view in plain language. It starts with a two-minute Laravel glossary and includes five end-to-end flows, plus the former guide's folder map and "I want to change …" table.
+
+  The screenshots were captured with headless Chrome at 1440×900, against a local server on freshly seeded data. The one-off capture script was not added to the repository, to avoid a Node dependency.
+- **Options considered:** Keep the single guide; put the explanations in the README; a hosted documentation site.
+- **Why this one:** Requested. A learner needs two different routes in: what the app does, seen from the screen, and how the code does it, file by file. One mixed document served neither well.
+- **Trade-off:** About 1.9 MB of screenshots in the repository, and they go out of date when the UI changes. Re-capture them after visual changes, on freshly seeded data.
+
+### D-140 Agents see only their own tickets
+- **Decision:** An agent's ticket list holds only the tickets assigned to them, in every status, including the ones they resolved or closed. An agent can open a ticket only if it is theirs or if it is an active unassigned ticket, so they can read a queue ticket before accepting it. Any other ticket, such as one assigned to another agent, or a finished ticket nobody owns, is a **404** for every ability, exactly like a missing ticket. The exception is `accept`: an agent who loses the race for a queue ticket still gets the 409 "just taken" message. Admins still see everything.
+  - **One rule in two places:** `TicketPolicy::canSee()` (single tickets) and `Ticket::scopeVisibleTo()` (queries). `TicketFilter` additionally limits an agent's list to their own tickets, leaving unassigned ones to the queue, and ignores the agent filter for agents. The filter bar hides it.
+  - **Route binding:** `{ticket}` is scoped with `visibleTo()` for customers only. For agents the policy returns the 404, because a binding-level 404 would turn a lost Accept race into "not found".
+  - **Form requests:** the ticket form requests (`StoreReplyRequest`, `UpdateTicketRequest`, `ChangeTicketStatusRequest`) return the policy's full response from `authorize()`, so the 404 survives instead of becoming a 403.
+  - **UI:** agents see "My tickets" as the list title and sidebar label.
+- **Options considered:** Keep "staff see everything"; agents see their tickets plus every unassigned ticket in the list; agents see only assigned tickets and the queue (chosen).
+- **Why this one:** Requested ("agents should see only their assigned tickets … not others' tickets"). The queue still has to be reachable, because accepting tickets is part of the assignment spec. So unassigned tickets stay visible, but only through the queue.
+- **Trade-off:** An agent loses access to a ticket as soon as it is reassigned to someone else, including its history. Notification links can lead to a 404: agents specialised in a category are told about new tickets, and once another agent takes one, that link no longer opens. Colleagues can no longer look at each other's tickets for context; an admin has to.
+
 ## Database
 
 ### D-016 Status, priority, role, reply/activity type as strings cast to PHP enums
@@ -379,6 +399,7 @@ Verified with `EXPLAIN` on the seeded database: the breach scan uses `tickets_st
 - **Trade-off:** Two rules must stay in sync; the HTTP tests cover both paths.
 
 ### D-035 404 instead of 403 for customers touching other customers' tickets
+- *(Extended by D-140: agents now get the same 404 for tickets assigned to other agents.)*
 - **Decision:** `TicketPolicy::before()` returns `Response::denyAsNotFound()` for every ability when a customer is not the ticket's creator. `AttachmentPolicy` denies as not found too. Staff denials stay 403.
 - **Options considered:** 403 everywhere; a `visibleTo`-scoped route binding; `denyAsNotFound` in the policy.
 - **Why this one:** Ticket numbers are sequential (`TKT-2026-000123`), so a 403 would confirm that a number exists and enable enumeration. Doing it in the policy covers every ability (view, reply, close, ...), not just the GET route, and keeps one source of truth. An unknown ticket number and someone else's ticket produce the same 404.
@@ -939,7 +960,7 @@ Verified with `EXPLAIN` on the seeded database: the breach scan uses `tickets_st
 ### D-014 Architecture rules enforced by Pest arch tests
 - **Decision:** `tests/Unit/ArchitectureTest.php` fails the suite if controllers use the `DB` facade, Actions/Services depend on the HTTP layer, FormRequests do not extend `FormRequest`, or debug calls (`dd`, `dump`, ...) remain.
 - **Options considered:** Convention only; code review; static analysis (PHPStan rules); Pest arch tests.
-- **Why this one:** The layer rules (docs/GUIDE.md) become executable at no extra tooling cost.
+- **Why this one:** The layer rules (docs/CODE_GUIDE.md) become executable at no extra tooling cost.
 - **Trade-off:** Arch rules only check namespaces/usages, not deeper design quality.
 
 ### D-110 Test depth follows risk

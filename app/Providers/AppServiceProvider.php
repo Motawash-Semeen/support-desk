@@ -131,9 +131,12 @@ class AppServiceProvider extends ServiceProvider
     }
 
     /**
-     * {ticket} resolves through visibleTo(): a customer asking for someone
-     * else's ticket number gets the same 404 as for a number that does not
-     * exist. TicketPolicy (denyAsNotFound) is the second layer.
+     * {ticket} resolves by ticket number. For customers it resolves through
+     * visibleTo(), so another customer's ticket number gets the same 404 as a
+     * number that does not exist. Staff tickets resolve unrestricted and
+     * TicketPolicy turns an agent's request for a ticket they may not see into
+     * the same 404 (denyAsNotFound), except Accept, where losing the race to
+     * another agent must answer 409 "just taken" rather than 404.
      */
     private function configureRouteBindings(): void
     {
@@ -142,7 +145,7 @@ class AppServiceProvider extends ServiceProvider
 
             return Ticket::query()
                 ->where('ticket_number', $value)
-                ->when($user instanceof User, fn ($query) => $query->visibleTo($user))
+                ->when($user instanceof User && $user->isCustomer(), fn ($query) => $query->visibleTo($user))
                 ->firstOrFail();
         });
     }

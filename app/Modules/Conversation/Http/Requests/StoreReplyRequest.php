@@ -5,7 +5,9 @@ namespace App\Modules\Conversation\Http\Requests;
 use App\Modules\Conversation\Enums\ReplyType;
 use App\Modules\Conversation\Support\AttachmentRules;
 use App\Modules\Tickets\Models\Ticket;
+use Illuminate\Auth\Access\Response;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 
 /**
@@ -15,11 +17,12 @@ use Illuminate\Validation\Rule;
  */
 class StoreReplyRequest extends FormRequest
 {
-    public function authorize(): bool
+    /** The policy's full answer, so a ticket the user may not see stays a 404. */
+    public function authorize(): Response
     {
         $ability = $this->replyType() === ReplyType::InternalNote ? 'addInternalNote' : 'reply';
 
-        return $this->user()->can($ability, $this->ticket());
+        return Gate::forUser($this->user())->inspect($ability, $this->ticket());
     }
 
     public function rules(): array

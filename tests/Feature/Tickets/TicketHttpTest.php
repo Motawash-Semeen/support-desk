@@ -157,10 +157,10 @@ it('lets the assigned agent change priority and logs it', function () {
         ->and($ticket->activities()->where('type', ActivityType::SlaRecalculated)->exists())->toBeTrue();
 });
 
-it('forbids an agent who is not assigned from editing', function () {
+it('returns 404 when an agent edits a ticket assigned to someone else', function () {
     $ticket = Ticket::factory()->assigned($this->agent)->create();
 
-    $this->actingAs($this->otherAgent)->patch(route('tickets.update', $ticket), ['subject' => 'x'])->assertForbidden();
+    $this->actingAs($this->otherAgent)->patch(route('tickets.update', $ticket), ['subject' => 'x'])->assertNotFound();
 });
 
 it('returns 404 for every ticket route when a customer targets someone else\'s ticket', function (string $method, string $route, array $body) {

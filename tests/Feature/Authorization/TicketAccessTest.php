@@ -12,7 +12,7 @@ beforeEach(function () {
     $this->agent = User::factory()->agent()->create();
     $this->admin = User::factory()->admin()->create();
 
-    $this->ticket = Ticket::factory()->for($this->owner, 'creator')->inProgress()->create();
+    $this->ticket = Ticket::factory()->for($this->owner, 'creator')->assigned($this->agent)->inProgress()->create();
 });
 
 it('returns 404, not 403, when a customer opens another customer\'s ticket', function () {
@@ -27,7 +27,7 @@ it('returns the same 404 for a ticket number that does not exist', function () {
         ->assertNotFound();
 });
 
-it('shows a ticket to its owner, any agent and admins', function (string $who) {
+it('shows a ticket to its owner, its assigned agent and admins', function (string $who) {
     $this->actingAs($this->{$who})
         ->get(route('tickets.show', $this->ticket))
         ->assertOk()
@@ -62,11 +62,48 @@ it('scopes the ticket list to the customer\'s own tickets', function () {
         ->assertSee($this->ticket->ticket_number)
         ->assertDontSee($foreign->ticket_number);
 
-    $this->actingAs($this->agent)
+    $this->actingAs($this->admin)
         ->get(route('tickets.index'))
         ->assertOk()
         ->assertSee($this->ticket->ticket_number)
         ->assertSee($foreign->ticket_number);
+});
+
+it('returns 404 when an agent opens a ticket assigned to another agent', function () {
+    $otherAgent = User::factory()->agent()->create();
+
+    $this->actingAs($otherAgent)->get(route('tickets.show', $this->ticket))->assertNotFound();
+    $this->actingAs($otherAgent)->post(route('tickets.replies.store', $this->ticket), ['body' => 'Hi'])->assertNotFound();
+});
+
+it('lets an agent open an active unassigned ticket from the queue, but not a finished one', function () {
+    $queued = Ticket::factory()->unassigned()->create();
+    $finishedUnassigned = Ticket::factory()->resolved()->create(['assigned_agent_id' => null]);
+
+    $this->actingAs($this->agent)->get(route('tickets.show', $queued))->assertOk();
+    $this->actingAs($this->agent)->get(route('tickets.show', $finishedUnassigned))->assertNotFound();
+});
+
+it('lists only the agent\'s own tickets, in every status', function () {
+    $resolved = Ticket::factory()->assigned($this->agent)->resolved()->create();
+    $closed = Ticket::factory()->assigned($this->agent)->closed()->create();
+    $someoneElses = Ticket::factory()->inProgress()->create();
+    $unassigned = Ticket::factory()->unassigned()->create();
+
+    $this->actingAs($this->agent)
+        ->get(route('tickets.index', ['scope' => 'all']))
+        ->assertOk()
+        ->assertSee($this->ticket->ticket_number)
+        ->assertSee($resolved->ticket_number)
+        ->assertSee($closed->ticket_number)
+        ->assertDontSee($someoneElses->ticket_number)
+        ->assertDontSee($unassigned->ticket_number) // unassigned tickets are in the queue, not the list
+        ->assertSee('My tickets');
+
+    // Even with an explicit agent filter, an agent never lists someone else's tickets.
+    $this->actingAs($this->agent)
+        ->get(route('tickets.index', ['scope' => 'all', 'assigned_agent_id' => $someoneElses->assigned_agent_id]))
+        ->assertDontSee($someoneElses->ticket_number);
 });
 
 it('sends guests to the login page', function () {

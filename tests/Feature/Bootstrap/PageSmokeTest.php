@@ -67,7 +67,9 @@ test('every parameterless page renders for every role without lazy loading or se
 test('every ticket page renders for staff and its owner, with replies, notes, files and timeline', function () {
     foreach ($this->tickets as $ticket) {
         $this->actingAs($this->admin)->get(route('tickets.show', $ticket))->assertOk();
-        $this->actingAs($this->agent)->get(route('tickets.show', $ticket))->assertOk();
+        // Agents see their own tickets and the unassigned queue; anything else is a 404.
+        $agentMaySee = $ticket->assigned_agent_id === $this->agent->id || ($ticket->assigned_agent_id === null && $ticket->isActive());
+        $this->actingAs($this->agent)->get(route('tickets.show', $ticket))->assertStatus($agentMaySee ? 200 : 404);
         $this->actingAs($this->customer)->get(route('tickets.show', $ticket))->assertOk();
         $this->actingAs($this->admin)->get(route('tickets.edit', $ticket))->assertOk();
         $this->actingAs($this->admin)->get(route('tickets.show', [$ticket, 'timeline' => 'oldest']))->assertOk();

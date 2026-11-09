@@ -147,7 +147,8 @@ it('lets the assignee release the ticket to the queue', function () {
 it('does not let another agent release someone else\'s ticket', function () {
     $this->actingAs($this->agentA)->post(route('tickets.accept', $this->ticket));
 
-    $this->actingAs($this->agentB)->post(route('tickets.release', $this->ticket))->assertForbidden();
+    // Once agent A owns it, agent B can no longer even see the ticket.
+    $this->actingAs($this->agentB)->post(route('tickets.release', $this->ticket))->assertNotFound();
 });
 
 /* Availability ------------------------------------------------------------- */

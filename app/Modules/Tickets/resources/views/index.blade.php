@@ -4,7 +4,7 @@
     $isFiltered = collect($filters)->except(['sort', 'direction', 'scope'])->filter(fn ($v) => $v !== null && $v !== '' && $v !== [])->isNotEmpty();
 @endphp
 
-<x-app-layout :title="auth()->user()->isStaff() ? __('All tickets') : __('My tickets')"
+<x-app-layout :title="auth()->user()->isAdmin() ? __('All tickets') : __('My tickets')"
               :subtitle="trans_choice('{0} No tickets match.|{1} 1 ticket|[2,*] :count tickets', $tickets->total(), ['count' => number_format($tickets->total())])">
     <x-slot name="actions">
         @can('create', App\Modules\Tickets\Models\Ticket::class)

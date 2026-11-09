@@ -4,7 +4,9 @@ namespace App\Modules\Tickets\Http\Requests;
 
 use App\Modules\Tickets\Enums\TicketPriority;
 use App\Modules\Tickets\Models\Ticket;
+use Illuminate\Auth\Access\Response;
 use Illuminate\Foundation\Http\FormRequest;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Validation\Rule;
 
 /**
@@ -14,9 +16,10 @@ use Illuminate\Validation\Rule;
  */
 class UpdateTicketRequest extends FormRequest
 {
-    public function authorize(): bool
+    /** The policy's full answer, so a ticket the user may not see stays a 404. */
+    public function authorize(): Response
     {
-        return $this->user()->can('update', $this->ticket());
+        return Gate::forUser($this->user())->inspect('update', $this->ticket());
     }
 
     public function rules(): array

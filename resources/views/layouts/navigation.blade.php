@@ -23,7 +23,7 @@
                 <x-nav-link :href="route('staff.dashboard')" :active="request()->routeIs('staff.dashboard')" icon="chart">{{ __('Dashboard') }}</x-nav-link>
             @endcan
             <x-nav-link :href="route('tickets.index')" :active="request()->routeIs('tickets.*')" icon="ticket">
-                @staff {{ __('Tickets') }} @else {{ __('My tickets') }} @endstaff
+                {{ $user->isAdmin() ? __('Tickets') : __('My tickets') }}
             </x-nav-link>
             @can('view-unassigned-queue')
                 <x-nav-link :href="route('staff.unassigned')" :active="request()->routeIs('staff.unassigned')" icon="inbox">{{ __('Unassigned queue') }}</x-nav-link>

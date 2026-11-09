@@ -27,7 +27,13 @@ class TicketPolicy
     {
         $ticket = $arguments[0] ?? null;
 
-        if ($ticket instanceof Ticket && $user->isCustomer() && ! $this->owns($user, $ticket)) {
+        // A ticket the user may not see is a 404 for every ability, exactly like
+        // a ticket number that does not exist. Accept is the exception: an agent
+        // who loses the race for an unassigned ticket gets the 409 "just taken"
+        // from ClaimTicket, not a 404.
+        $agentAccepting = $ability === 'accept' && $user->isAgent();
+
+        if ($ticket instanceof Ticket && ! $agentAccepting && ! $this->canSee($user, $ticket)) {
             return Response::denyAsNotFound();
         }
 
@@ -42,7 +48,7 @@ class TicketPolicy
 
     public function view(User $user, Ticket $ticket): bool
     {
-        return $user->isStaff() || $this->owns($user, $ticket);
+        return $this->canSee($user, $ticket);
     }
 
     public function create(User $user): bool
@@ -165,6 +171,21 @@ class TicketPolicy
     public function import(User $user): bool
     {
         return $user->isAdmin();
+    }
+
+    /**
+     * Same rule as Ticket::scopeVisibleTo(): admins see everything; agents see
+     * their own tickets and active unassigned ones (the queue); customers see
+     * the tickets they created.
+     */
+    private function canSee(User $user, Ticket $ticket): bool
+    {
+        return match (true) {
+            $user->isAdmin() => true,
+            $user->isAgent() => $this->isAssignee($user, $ticket)
+                || ($ticket->assigned_agent_id === null && $ticket->isActive()),
+            default => $this->owns($user, $ticket),
+        };
     }
 
     private function owns(User $user, Ticket $ticket): bool

@@ -205,6 +205,8 @@
             </div>
 
             @staff
+                {{-- Agents only ever list their own tickets, so the agent filter is for admins. --}}
+                @if (auth()->user()->isAdmin())
                 <div class="min-w-0">
                     <label for="assigned_agent_id" class="field-label">{{ __('Agent') }}</label>
                     <select id="assigned_agent_id" name="assigned_agent_id" class="field-input mt-1.5">
@@ -215,6 +217,7 @@
                         @endforeach
                     </select>
                 </div>
+                @endif
 
                 {{-- Customer autocomplete: searches by name/email, submits the customer id. --}}
                 <div x-data="customerPicker(@js($selectedCustomer?->only(['id', 'name', 'email'])))" class="relative min-w-0" @click.outside="results = []">

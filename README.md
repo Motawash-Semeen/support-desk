@@ -5,7 +5,8 @@ counted in business hours.
 
 Laravel 12 · PHP 8.2+ · MySQL 8 · Blade + Tailwind + Alpine · Pest
 
-- **Where things are and how to change them:** [docs/GUIDE.md](docs/GUIDE.md)
+- **How to use every screen (with screenshots):** [docs/UI_GUIDE.md](docs/UI_GUIDE.md)
+- **How the code works, in plain language:** [docs/CODE_GUIDE.md](docs/CODE_GUIDE.md)
 - **Why it is built this way:** [docs/DECISIONS.md](docs/DECISIONS.md)
 - **Query measurements on 100k tickets:** [docs/PERFORMANCE.md](docs/PERFORMANCE.md)
 
