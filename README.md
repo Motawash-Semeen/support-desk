@@ -81,5 +81,5 @@ vendor/bin/phpstan analyse
 | CSV ticket import (sample file at `/admin/imports/sample`) | `/admin/imports` |
 | Logs (application log files, opcodesio/log-viewer) | `/admin/log-viewer` |
 
-Business settings (timezone, SLA defaults, attachment limits, assignment strategy, import size) are in
+Business settings (timezone, SLA defaults, attachment limits, assignment weights, import size) are in
 `config/support.php`, and each can be overridden with a `SUPPORT_*` value in `.env`.

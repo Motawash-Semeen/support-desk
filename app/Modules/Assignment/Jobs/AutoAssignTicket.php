@@ -5,7 +5,7 @@ namespace App\Modules\Assignment\Jobs;
 use App\Modules\Activity\Enums\ActivityType;
 use App\Modules\Activity\Services\TicketActivityRecorder;
 use App\Modules\Assignment\Actions\ClaimTicket;
-use App\Modules\Assignment\Services\AssignmentStrategy;
+use App\Modules\Assignment\Services\LeastWorkloadStrategy;
 use App\Modules\Tickets\Models\Ticket;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -41,7 +41,7 @@ class AutoAssignTicket implements ShouldBeUnique, ShouldQueue
         return (string) $this->ticketId;
     }
 
-    public function handle(AssignmentStrategy $strategy, ClaimTicket $claim, TicketActivityRecorder $activity): void
+    public function handle(LeastWorkloadStrategy $strategy, ClaimTicket $claim, TicketActivityRecorder $activity): void
     {
         $ticket = Ticket::query()->find($this->ticketId);
 

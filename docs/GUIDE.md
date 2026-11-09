@@ -157,7 +157,7 @@ see internals: errors render the custom pages in `resources/views/errors`.
 | change who receives an email | the matching `Notifications/Listeners/Notify*.php` |
 | change an email's text | `Notifications/Notifications/*Notification.php` and the template `Notifications/resources/views/mail/ticket.blade.php` |
 | add an activity type | a case in `Activity/Enums/ActivityType.php` (label and customer visibility), then call the recorder from the Action |
-| change the auto-assignment rule | `Assignment/Services/LeastWorkloadStrategy.php`, or a new strategy class plus an entry in `config/support.php` |
+| change the auto-assignment rule | `Assignment/Services/LeastWorkloadStrategy.php`; workload weights in `config/support.php` |
 | change the ticket list, filters or search | `Tickets/Filters/TicketFilter.php` and `Tickets/resources/views/index.blade.php` / `partials/filter-bar.blade.php` |
 | change dashboard numbers | `Dashboard/Services/DashboardStatsService.php` and `Dashboard/resources/views/index.blade.php` |
 | change the sidebar | `resources/views/layouts/navigation.blade.php` |

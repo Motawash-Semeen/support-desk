@@ -8,7 +8,7 @@ use App\Modules\Assignment\Actions\AssignTicket;
 use App\Modules\Assignment\Actions\ClaimTicket;
 use App\Modules\Assignment\Actions\ReleaseTicket;
 use App\Modules\Assignment\Jobs\AutoAssignTicket;
-use App\Modules\Assignment\Services\AssignmentStrategy;
+use App\Modules\Assignment\Services\LeastWorkloadStrategy;
 use App\Modules\Conversation\Actions\AddReply;
 use App\Modules\Conversation\Enums\ReplyType;
 use App\Modules\Sla\Actions\EscalateTicket;
@@ -166,7 +166,7 @@ it('system actions write entries with no actor', function () {
     User::query()->whereKey($this->agent->id)->update(['is_available' => false]);
 
     $skip = activitiesDuring(fn () => (new AutoAssignTicket($orphan->id))->handle(
-        app(AssignmentStrategy::class), app(ClaimTicket::class), app(TicketActivityRecorder::class),
+        app(LeastWorkloadStrategy::class), app(ClaimTicket::class), app(TicketActivityRecorder::class),
     ));
 
     $breached = Ticket::factory()->inProgress()->breached()->create();

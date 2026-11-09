@@ -21,8 +21,7 @@ it('exposes the business settings from config/support.php', function () {
         ->and(config('support.attachments.disk'))->toBe('private')
         ->and(config('support.attachments.max_kb'))->toBe(5120)
         ->and(config('support.attachments.max_files'))->toBe(5)
-        ->and(config('support.attachments.mimes'))->toContain('pdf', 'png', 'csv')
-        ->and(config('support.assignment.strategy'))->toBe('least_workload');
+        ->and(config('support.attachments.mimes'))->toContain('pdf', 'png', 'csv');
 });
 
 it('stores time in UTC at the application level', function () {

@@ -5,9 +5,7 @@ use App\Modules\Activity\Enums\ActivityType;
 use App\Modules\Activity\Services\TicketActivityRecorder;
 use App\Modules\Assignment\Actions\ClaimTicket;
 use App\Modules\Assignment\Jobs\AutoAssignTicket;
-use App\Modules\Assignment\Services\AssignmentStrategy;
 use App\Modules\Assignment\Services\LeastWorkloadStrategy;
-use App\Modules\Assignment\Services\RoundRobinStrategy;
 use App\Modules\Tickets\Actions\CreateTicket;
 use App\Modules\Tickets\Enums\TicketPriority;
 use App\Modules\Tickets\Models\Category;
@@ -21,7 +19,7 @@ use Illuminate\Support\Facades\Queue;
 /** Run the job synchronously, exactly as a worker would. */
 function autoAssign(Ticket $ticket): void
 {
-    (new AutoAssignTicket($ticket->id))->handle(app(AssignmentStrategy::class), app(ClaimTicket::class), app(TicketActivityRecorder::class));
+    (new AutoAssignTicket($ticket->id))->handle(app(LeastWorkloadStrategy::class), app(ClaimTicket::class), app(TicketActivityRecorder::class));
 }
 
 beforeEach(function () {
@@ -131,28 +129,6 @@ it('locks candidate agents in id order before reading workload (MySQL)', functio
     expect($lock)->not->toBeNull()
         ->and(strtolower($lock))->toContain('order by `id` asc for update');
 })->skip(fn () => ! in_array(DB::getDriverName(), ['mysql', 'mariadb'], true), 'Row locks are only emitted on MySQL.');
-
-it('resolves the strategy from config', function () {
-    expect(app(AssignmentStrategy::class))->toBeInstanceOf(LeastWorkloadStrategy::class);
-
-    config(['support.assignment.strategy' => 'round_robin']);
-    expect(app(AssignmentStrategy::class))->toBeInstanceOf(RoundRobinStrategy::class);
-
-    config(['support.assignment.strategy' => 'random']);
-    expect(fn () => app(AssignmentStrategy::class))->toThrow(InvalidArgumentException::class);
-});
-
-it('round-robin picks the least recently assigned agent regardless of workload', function () {
-    config(['support.assignment.strategy' => 'round_robin']);
-    $recent = User::factory()->agent()->create(['last_assigned_at' => now()->subMinute()]);
-    $loadedButOld = User::factory()->agent()->create(['last_assigned_at' => now()->subDay()]);
-    Ticket::factory()->count(4)->inProgress()->assigned($loadedButOld)->create();
-
-    $ticket = Ticket::factory()->for($this->category)->create();
-    autoAssign($ticket);
-
-    expect($ticket->fresh()->assigned_agent_id)->toBe($loadedButOld->id);
-});
 
 it('leaves the ticket unassigned and records the skip once when nobody is available', function () {
     User::factory()->unavailable()->create();

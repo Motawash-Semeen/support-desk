@@ -3,7 +3,6 @@
 namespace App\Providers;
 
 use App\Models\User;
-use App\Modules\Assignment\Services\AssignmentStrategy;
 use App\Modules\Conversation\Models\Attachment;
 use App\Modules\Conversation\Policies\AttachmentPolicy;
 use App\Modules\Sla\Services\BusinessHoursSlaCalculator;
@@ -13,7 +12,6 @@ use App\Modules\Sla\Services\SlaRules;
 use App\Modules\Tickets\Models\Ticket;
 use App\Modules\Tickets\Policies\TicketPolicy;
 use Illuminate\Cache\RateLimiting\Limit;
-use Illuminate\Contracts\Foundation\Application;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Request;
@@ -24,7 +22,6 @@ use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\View;
 use Illuminate\Support\ServiceProvider;
 use Illuminate\Validation\Rules\Password;
-use InvalidArgumentException;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -37,18 +34,6 @@ class AppServiceProvider extends ServiceProvider
         $this->app->scoped(SlaPolicyRepository::class);
         $this->app->bind(SlaRules::class, SlaPolicyRepository::class);
         $this->app->bind(SlaCalculator::class, BusinessHoursSlaCalculator::class);
-
-        // Auto-assignment strategy chosen by name in config/support.php.
-        $this->app->bind(AssignmentStrategy::class, function (Application $app): AssignmentStrategy {
-            $name = (string) config('support.assignment.strategy');
-            $class = config("support.assignment.strategies.{$name}");
-
-            if (! is_string($class) || ! is_subclass_of($class, AssignmentStrategy::class)) {
-                throw new InvalidArgumentException("Unknown assignment strategy [{$name}].");
-            }
-
-            return $app->make($class);
-        });
     }
 
     /**

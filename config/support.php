@@ -1,8 +1,5 @@
 <?php
 
-use App\Modules\Assignment\Services\LeastWorkloadStrategy;
-use App\Modules\Assignment\Services\RoundRobinStrategy;
-
 /*
 |--------------------------------------------------------------------------
 | Support Desk business settings
@@ -101,17 +98,9 @@ return [
     ],
 
     /*
-    | Auto-assignment strategy resolved by App\Modules\Assignment\Services.
+    | Auto-assignment (App\Modules\Assignment\Services\LeastWorkloadStrategy).
     */
     'assignment' => [
-        'strategy' => env('SUPPORT_ASSIGNMENT_STRATEGY', 'least_workload'),
-
-        // Strategy name => App\Modules\Assignment\Services\AssignmentStrategy implementation.
-        'strategies' => [
-            'least_workload' => LeastWorkloadStrategy::class,
-            'round_robin' => RoundRobinStrategy::class,
-        ],
-
         // Weight of one active ticket in an agent's workload, by priority.
         'workload_weights' => [
             'critical' => 3,

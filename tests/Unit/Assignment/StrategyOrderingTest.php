@@ -2,14 +2,13 @@
 
 use App\Models\User;
 use App\Modules\Assignment\Services\LeastWorkloadStrategy;
-use App\Modules\Assignment\Services\RoundRobinStrategy;
 use App\Modules\Tickets\Enums\TicketPriority;
 use App\Modules\Tickets\Models\Ticket;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
 /*
- * Table-driven ordering rules of the two strategies. The ordering is one SQL
+ * Table-driven ordering rules of auto-assignment. The ordering is one SQL
  * query (taken under row locks), so the smallest honest unit includes the
  * database; nothing else (HTTP, events, queue) is involved.
  *
@@ -60,16 +59,8 @@ test('least-workload ignores resolved and closed tickets when weighing workload'
     expect(app(LeastWorkloadStrategy::class)->pick(Ticket::factory()->unassigned()->create())->is($busy))->toBeTrue();
 });
 
-test('round-robin picks the least recently assigned agent regardless of workload', function (array $agents, string $expected) {
-    expect(pickFor(RoundRobinStrategy::class, $agents))->toBe($expected);
-})->with([
-    'older assignment wins over lighter load' => [['a' => [[], 5], 'b' => [[TicketPriority::Critical, TicketPriority::Critical], 60]], 'b'],
-    'never-assigned first' => [['a' => [[], 1], 'b' => [[TicketPriority::High], null]], 'b'],
-    'tie: lowest id' => [['a' => [[], 30], 'b' => [[], 30]], 'a'],
-]);
-
-test('both strategies return nobody when no agent is available', function (string $strategy) {
+test('nobody is picked when no agent is available', function () {
     User::factory()->agent()->unavailable()->create();
 
-    expect(app($strategy)->pick(Ticket::factory()->unassigned()->create()))->toBeNull();
-})->with([LeastWorkloadStrategy::class, RoundRobinStrategy::class]);
+    expect(app(LeastWorkloadStrategy::class)->pick(Ticket::factory()->unassigned()->create()))->toBeNull();
+});
