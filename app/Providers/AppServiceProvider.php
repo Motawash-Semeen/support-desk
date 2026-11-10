@@ -3,14 +3,11 @@
 namespace App\Providers;
 
 use App\Models\User;
+use App\Modules\Conversation\AttachmentPolicy;
 use App\Modules\Conversation\Models\Attachment;
-use App\Modules\Conversation\Policies\AttachmentPolicy;
-use App\Modules\Sla\Services\BusinessHoursSlaCalculator;
-use App\Modules\Sla\Services\SlaCalculator;
-use App\Modules\Sla\Services\SlaPolicyRepository;
-use App\Modules\Sla\Services\SlaRules;
+use App\Modules\Sla\SlaService;
 use App\Modules\Tickets\Models\Ticket;
-use App\Modules\Tickets\Policies\TicketPolicy;
+use App\Modules\Tickets\TicketPolicy;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Database\Eloquent\Model;
@@ -25,20 +22,12 @@ use Illuminate\Validation\Rules\Password;
 
 class AppServiceProvider extends ServiceProvider
 {
-    /**
-     * Register any application services.
-     */
     public function register(): void
     {
-        // SLA: rules are cached per request/job (scoped), maths is pure.
-        $this->app->scoped(SlaPolicyRepository::class);
-        $this->app->bind(SlaRules::class, SlaPolicyRepository::class);
-        $this->app->bind(SlaCalculator::class, BusinessHoursSlaCalculator::class);
+        // One SlaService per request or job, so the SLA rules are read once.
+        $this->app->scoped(SlaService::class);
     }
 
-    /**
-     * Bootstrap any application services.
-     */
     public function boot(): void
     {
         $this->configureEloquent();
@@ -47,18 +36,13 @@ class AppServiceProvider extends ServiceProvider
         $this->configureRouteBindings();
         $this->configureRateLimits();
 
-        // Breeze forms use Password::defaults(). Production also rejects
-        // passwords found in known breaches (Have I Been Pwned k-anonymity API).
+        // Production also rejects passwords found in known breaches.
         Password::defaults(fn () => app()->isProduction()
             ? Password::min(10)->letters()->mixedCase()->numbers()->uncompromised()
             : Password::min(8));
     }
 
-    /**
-     * Per-user limits on the write-heavy and file endpoints (config
-     * support.rate_limits, per minute). Guests are keyed by IP. Login keeps
-     * Breeze's own throttle (5 attempts per email+IP).
-     */
+    /** Per-user rate limits from config support.rate_limits (per IP for guests). */
     private function configureRateLimits(): void
     {
         foreach (array_keys(config('support.rate_limits')) as $name) {
@@ -68,9 +52,8 @@ class AppServiceProvider extends ServiceProvider
     }
 
     /**
-     * Strict Eloquent outside production: lazy loading (N+1), silently discarded
-     * attributes (mass assignment) and access to missing attributes all throw.
-     * In production these stay off so a missed eager load degrades, not fails.
+     * Strict Eloquent outside production: lazy loading, discarded attributes and
+     * missing attributes throw. Production only degrades.
      */
     private function configureEloquent(): void
     {
@@ -80,11 +63,7 @@ class AppServiceProvider extends ServiceProvider
         Model::preventLazyLoading($strict);
     }
 
-    /**
-     * Module models live outside App\Models, so neither policies nor factories
-     * can be found by Laravel's naming convention: policies are mapped here and
-     * factories are looked up by class name in database/factories.
-     */
+    /** Module models live outside App\Models, so their policies and factories are mapped here. */
     private function configureModules(): void
     {
         Gate::policy(Ticket::class, TicketPolicy::class);
@@ -95,23 +74,16 @@ class AppServiceProvider extends ServiceProvider
         );
     }
 
-    /**
-     * Role-only pages are guarded by the `role:` route middleware, so the only
-     * gate left is the one opcodesio/log-viewer requires. Ticket rules live in
-     * TicketPolicy (mapped in configureModules()).
-     */
+    /** The log viewer gate, the @staff directive and the bell count. */
     private function configureAuthorization(): void
     {
-        // opcodesio/log-viewer's own gate (raw files in storage/logs); the route
-        // middleware in config/log-viewer.php already requires role:admin.
+        // The log viewer's own gate (its routes also require role:admin).
         Gate::define('viewLogViewer', fn (?User $user): bool => (bool) $user?->isAdmin());
 
-        // Cosmetic only: hides staff UI. The server still authorizes every action.
+        // Only hides staff UI; the server still checks every action.
         Blade::if('staff', fn (): bool => (bool) auth()->user()?->isStaff());
 
-        // Bell badge: one COUNT per request, however often the navigation renders.
-        // Memoised on the request itself (not once()), so a long-running worker
-        // can never carry one request's count into the next.
+        // Bell badge: one COUNT per request, kept on the request itself.
         View::composer('layouts.navigation', function ($view): void {
             $request = request();
             $user = $request->user();
@@ -125,12 +97,9 @@ class AppServiceProvider extends ServiceProvider
     }
 
     /**
-     * {ticket} resolves by ticket number. For customers it resolves through
-     * visibleTo(), so another customer's ticket number gets the same 404 as a
-     * number that does not exist. Staff tickets resolve unrestricted and
-     * TicketPolicy turns an agent's request for a ticket they may not see into
-     * the same 404 (denyAsNotFound), except Accept, where losing the race to
-     * another agent must answer 409 "just taken" rather than 404.
+     * {ticket} is the ticket number. For customers it is looked up among their own
+     * tickets, so someone else's number is a 404. For staff the policy gives that 404,
+     * so a lost accept race can still answer 409.
      */
     private function configureRouteBindings(): void
     {

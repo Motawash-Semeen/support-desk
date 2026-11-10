@@ -37,7 +37,7 @@
                                     <td>
                                         <label for="minutes-{{ $key }}" class="sr-only">{{ __('Target for :priority', ['priority' => $policy['priority']->label()]) }}</label>
                                         <div class="flex items-center gap-2">
-                                            <input id="minutes-{{ $key }}" type="number" min="1" max="{{ \App\Modules\Sla\Http\Requests\UpdateSlaPoliciesRequest::MAX_MINUTES }}" required
+                                            <input id="minutes-{{ $key }}" type="number" min="1" max="{{ \App\Modules\Sla\Requests\UpdateSlaPoliciesRequest::MAX_MINUTES }}" required
                                                    name="policies[{{ $key }}][resolution_minutes]" value="{{ old("policies.$key.resolution_minutes", $policy['resolution_minutes']) }}"
                                                    class="field-input w-28 tabular-nums">
                                             <span class="text-xs text-ink-400">≈ {{ round($policy['resolution_minutes'] / 60, 1) }} h</span>

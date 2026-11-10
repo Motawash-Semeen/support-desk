@@ -1,0 +1,21 @@
+<?php
+
+namespace App\Modules\Sla\Requests;
+
+use Illuminate\Foundation\Http\FormRequest;
+
+class StoreHolidayRequest extends FormRequest
+{
+    public function rules(): array
+    {
+        return [
+            'date' => ['required', 'date_format:Y-m-d', 'unique:holidays,date'],
+            'name' => ['required', 'string', 'max:100'],
+        ];
+    }
+
+    public function messages(): array
+    {
+        return ['date.unique' => __('That date is already a holiday.')];
+    }
+}

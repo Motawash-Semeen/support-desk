@@ -90,7 +90,7 @@ php artisan migrate --seed          # tables + reference data + sample team, cus
 notifications), and the core tables (users, sessions, cache, jobs) are in `database/migrations`. Laravel runs
 them all together, in date order. There is one migration per table, with its final columns and indexes.
 
-**Sample data:** `database/seeders/TicketSeeder.php` creates the 42 tickets by running the app's real actions
+**Sample data:** `database/seeders/TicketSeeder.php` creates the 42 tickets by running the app's real services
 over the past few weeks, so ticket numbers, deadlines, history and notifications are realistic. The ticket
 texts are in `database/seeders/data/tickets.php`.
 
@@ -228,14 +228,16 @@ The most important ones:
 
 ### Architecture
 
-- **Feature modules.** The code is split into 8 modules in `app/Modules` (Tickets, Conversation, Assignment, Sla,
-  Activity, Notifications, Dashboard, Imports), each with its own models, actions, controllers, views, routes and
-  migrations (package: L5Modular).
-- **Actions hold the business logic.** One class per task (`CreateTicket`, `ClaimTicket`, `AddReply`…), each in
-  one database transaction. Controllers only check permission, validate, call one action and return a page.
+- **Feature modules, kept flat.** The code is split into 8 modules in `app/Modules` (Tickets, Conversation,
+  Assignment, Sla, Activity, Notifications, Dashboard, Imports), each with its own controller, service, views,
+  routes and migrations (package: L5Modular). Inside a module the only sub-folders are `Enums`, `Models` and
+  `Requests`.
+- **One service per feature holds the business logic** (`TicketService`, `AssignmentService`, `SlaService`,
+  `ConversationService`, `ImportService`…), one method per task, each in one database transaction. Controllers
+  only check permission, validate, call one service method and return a page.
 - **Server-rendered pages** (Blade + Alpine), not a JavaScript SPA, so authorization stays on the server.
-- **Events fire only after the database commits,** so no email goes out about a change that was rolled back.
-  Listeners and notifications run on the queue.
+- **Notifications go out only after the database commits,** so no email goes out about a change that was rolled
+  back. Who hears about what is one file (`TicketNotifier`); the one `TicketNotification` class is queued.
 
 ### Data and rules
 

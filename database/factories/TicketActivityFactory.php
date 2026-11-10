@@ -7,9 +7,6 @@ use App\Modules\Activity\Models\TicketActivity;
 use App\Modules\Tickets\Models\Ticket;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
-/**
- * @extends Factory<TicketActivity>
- */
 class TicketActivityFactory extends Factory
 {
     protected $model = TicketActivity::class;

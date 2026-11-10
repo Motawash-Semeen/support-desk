@@ -10,8 +10,7 @@ return new class extends Migration
     {
         Schema::create('holidays', function (Blueprint $table) {
             $table->id();
-            // Calendar date in the business timezone. The unique index also serves
-            // the SLA calculator's range lookup (WHERE date BETWEEN ? AND ?).
+            // Calendar date in the business timezone.
             $table->date('date')->unique();
             $table->string('name', 100);
         });

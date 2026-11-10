@@ -40,11 +40,8 @@ enum TicketStatus: string
     }
 
     /**
-     * The single source of truth for status changes. Reopening a resolved
-     * ticket goes back to In progress; Closed is terminal except for the
-     * admin-only reopen in adminOnlyTransitions().
-     *
-     * @return list<self>
+     * Legal status moves. Reopening goes back to In progress; Closed is final except
+     * for an admin's reopen.
      */
     public function allowedTransitions(): array
     {
@@ -58,11 +55,7 @@ enum TicketStatus: string
         };
     }
 
-    /**
-     * Extra transitions only an administrator may perform.
-     *
-     * @return list<self>
-     */
+    /** Extra transitions only an administrator may perform. */
     public function adminOnlyTransitions(): array
     {
         return match ($this) {
@@ -83,19 +76,16 @@ enum TicketStatus: string
         return self::InProgress;
     }
 
-    /** @return list<self> */
     public static function activeCases(): array
     {
         return [self::Open, self::InProgress, self::WaitingForCustomer];
     }
 
-    /** @return list<string> */
     public static function activeValues(): array
     {
         return array_map(fn (self $status) => $status->value, self::activeCases());
     }
 
-    /** @return list<string> */
     public static function finishedValues(): array
     {
         return [self::Resolved->value, self::Closed->value];

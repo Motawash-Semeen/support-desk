@@ -3,29 +3,23 @@
 use App\Models\User;
 use App\Modules\Activity\Enums\ActivityType;
 use App\Modules\Activity\Models\TicketActivity;
-use App\Modules\Activity\Services\TicketActivityRecorder;
-use App\Modules\Assignment\Actions\AssignTicket;
-use App\Modules\Assignment\Actions\ClaimTicket;
-use App\Modules\Assignment\Actions\ReleaseTicket;
-use App\Modules\Assignment\Jobs\AutoAssignTicket;
-use App\Modules\Assignment\Services\LeastWorkloadStrategy;
-use App\Modules\Conversation\Actions\AddReply;
+use App\Modules\Assignment\AssignmentService;
+use App\Modules\Assignment\AutoAssignTicket;
+use App\Modules\Conversation\ConversationService;
 use App\Modules\Conversation\Enums\ReplyType;
-use App\Modules\Sla\Actions\EscalateTicket;
 use App\Modules\Sla\Enums\EscalationKind;
-use App\Modules\Tickets\Actions\ChangeTicketStatus;
-use App\Modules\Tickets\Actions\CreateTicket;
-use App\Modules\Tickets\Actions\UpdateTicket;
+use App\Modules\Sla\SlaService;
 use App\Modules\Tickets\Enums\TicketPriority;
 use App\Modules\Tickets\Enums\TicketStatus;
-use App\Modules\Tickets\Exceptions\InvalidTicketTransition;
 use App\Modules\Tickets\Models\Category;
 use App\Modules\Tickets\Models\Ticket;
+use App\Modules\Tickets\TicketService;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Validation\ValidationException;
 
 /*
-| Every Action writes exactly the history it should: one activity per business
+| Every service method writes exactly the history it should: one activity per business
 | change, with correct old/new values. Two deliberate pairs: a priority change
 | and a reopen also move the deadline, which is its own sla_recalculated entry.
 */
@@ -49,10 +43,10 @@ function activitiesDuring(Closure $act): Collection
     return TicketActivity::query()->where('id', '>', $before)->orderBy('id')->get();
 }
 
-it('CreateTicket writes one ticket_created entry', function () {
+it('create() writes one ticket_created entry', function () {
     $category = Category::factory()->create();
 
-    $log = activitiesDuring(fn () => app(CreateTicket::class)($this->customer, [
+    $log = activitiesDuring(fn () => app(TicketService::class)->create($this->customer, [
         'subject' => 'VPN', 'description' => 'Down', 'priority' => 'high', 'category_id' => $category->id,
     ]));
 
@@ -62,10 +56,10 @@ it('CreateTicket writes one ticket_created entry', function () {
         ->and($log[0]->new_values)->toBeJsonObject(['status' => 'open', 'priority' => 'high', 'category_id' => $category->id]);
 });
 
-it('UpdateTicket writes one entry per edited field', function (array $input, ActivityType $type, string $field) {
+it('update() writes one entry per edited field', function (array $input, ActivityType $type, string $field) {
     $old = $this->ticket->getRawOriginal($field);
 
-    $log = activitiesDuring(fn () => app(UpdateTicket::class)($this->admin, $this->ticket, $input));
+    $log = activitiesDuring(fn () => app(TicketService::class)->update($this->admin, $this->ticket, $input));
 
     expect($log->pluck('type')->all())->toBe([$type])
         ->and($log[0]->old_values)->toBe([$field => $old])
@@ -75,10 +69,10 @@ it('UpdateTicket writes one entry per edited field', function (array $input, Act
     'description' => [['description' => 'More detail'], ActivityType::TicketUpdated, 'description'],
 ]);
 
-it('UpdateTicket logs a category change with names', function () {
+it('update() logs a category change with names', function () {
     $billing = Category::factory()->create(['name' => 'Billing']);
 
-    $log = activitiesDuring(fn () => app(UpdateTicket::class)($this->admin, $this->ticket, ['category_id' => $billing->id]));
+    $log = activitiesDuring(fn () => app(TicketService::class)->update($this->admin, $this->ticket, ['category_id' => $billing->id]));
 
     expect($log->pluck('type')->all())->toBe([ActivityType::CategoryChanged])
         ->and($log[0]->description)->toEndWith('to Billing')
@@ -86,7 +80,7 @@ it('UpdateTicket logs a category change with names', function () {
 });
 
 it('a priority change logs priority_changed and the SLA move', function () {
-    $log = activitiesDuring(fn () => app(UpdateTicket::class)($this->admin, $this->ticket, ['priority' => 'high']));
+    $log = activitiesDuring(fn () => app(TicketService::class)->update($this->admin, $this->ticket, ['priority' => 'high']));
 
     expect($log->pluck('type')->all())->toBe([ActivityType::PriorityChanged, ActivityType::SlaRecalculated])
         ->and($log[0]->description)->toBe('Priority changed from Low to High')
@@ -95,22 +89,22 @@ it('a priority change logs priority_changed and the SLA move', function () {
 });
 
 it('status changes write one status_changed entry', function () {
-    $log = activitiesDuring(fn () => app(ChangeTicketStatus::class)($this->agent, $this->ticket, TicketStatus::WaitingForCustomer));
+    $log = activitiesDuring(fn () => app(TicketService::class)->changeStatus($this->agent, $this->ticket, TicketStatus::WaitingForCustomer));
 
     expect($log->pluck('type')->all())->toBe([ActivityType::StatusChanged])
         ->and($log[0]->description)->toBe('Status changed from In progress to Waiting for customer')
         ->and($log[0]->old_values)->toBe(['status' => 'in_progress'])
         ->and($log[0]->new_values)->toBe(['status' => 'waiting_for_customer']);
 
-    $log = activitiesDuring(fn () => app(ChangeTicketStatus::class)($this->agent, $this->ticket, TicketStatus::Resolved, 'Fixed'));
+    $log = activitiesDuring(fn () => app(TicketService::class)->changeStatus($this->agent, $this->ticket, TicketStatus::Resolved, 'Fixed'));
     expect($log->pluck('type')->all())->toBe([ActivityType::StatusChanged])
         ->and($log[0]->new_values)->toBeJsonObject(['status' => 'resolved', 'reason' => 'Fixed']);
 });
 
 it('a reopen logs reopened and the fresh SLA', function () {
-    app(ChangeTicketStatus::class)($this->agent, $this->ticket, TicketStatus::Resolved);
+    app(TicketService::class)->changeStatus($this->agent, $this->ticket, TicketStatus::Resolved);
 
-    $log = activitiesDuring(fn () => app(ChangeTicketStatus::class)($this->customer, $this->ticket, TicketStatus::reopenTarget()));
+    $log = activitiesDuring(fn () => app(TicketService::class)->changeStatus($this->customer, $this->ticket, TicketStatus::reopenTarget()));
 
     expect($log->pluck('type')->all())->toBe([ActivityType::Reopened, ActivityType::SlaRecalculated])
         ->and($log[0]->old_values)->toBe(['status' => 'resolved'])
@@ -121,19 +115,19 @@ it('assignment actions write one entry each with old and new agent', function ()
     $open = Ticket::factory()->for($this->customer, 'creator')->create();
     $other = User::factory()->agent()->create(['name' => 'Agent C']);
 
-    $claim = activitiesDuring(fn () => app(ClaimTicket::class)($open, $this->agent, $this->agent));
+    $claim = activitiesDuring(fn () => app(AssignmentService::class)->claim($open, $this->agent, $this->agent));
     expect($claim->pluck('type')->all())->toBe([ActivityType::Assigned])
         ->and($claim[0]->description)->toBe('Accepted by Agent B')
         ->and($claim[0]->old_values)->toBeJsonObject(['assigned_agent_id' => null, 'status' => 'open'])
         ->and($claim[0]->new_values)->toBeJsonObject(['assigned_agent_id' => $this->agent->id, 'status' => 'in_progress']);
 
-    $reassign = activitiesDuring(fn () => app(AssignTicket::class)($this->admin, $open, $other, $this->agent->id));
+    $reassign = activitiesDuring(fn () => app(AssignmentService::class)->assign($this->admin, $open, $other, $this->agent->id));
     expect($reassign->pluck('type')->all())->toBe([ActivityType::Reassigned])
         ->and($reassign[0]->description)->toBe('Reassigned from Agent B to Agent C by Admin A')
         ->and($reassign[0]->old_values['assigned_agent_id'])->toBe($this->agent->id)
         ->and($reassign[0]->new_values['assigned_agent_id'])->toBe($other->id);
 
-    $release = activitiesDuring(fn () => app(ReleaseTicket::class)($other, $open->fresh()));
+    $release = activitiesDuring(fn () => app(AssignmentService::class)->release($other, $open->fresh()));
     expect($release->pluck('type')->all())->toBe([ActivityType::Released])
         ->and($release[0]->new_values)->toBeJsonObject(['assigned_agent_id' => null, 'status' => 'open']);
 });
@@ -141,7 +135,7 @@ it('assignment actions write one entry each with old and new agent', function ()
 it('an admin assignment reads "Assigned to X by Y"', function () {
     $open = Ticket::factory()->for($this->customer, 'creator')->create();
 
-    $log = activitiesDuring(fn () => app(AssignTicket::class)($this->admin, $open, $this->agent, null));
+    $log = activitiesDuring(fn () => app(AssignmentService::class)->assign($this->admin, $open, $this->agent, null));
 
     expect($log->pluck('type')->all())->toBe([ActivityType::Assigned])
         ->and($log[0]->description)->toBe('Assigned to Agent B by Admin A');
@@ -150,7 +144,7 @@ it('an admin assignment reads "Assigned to X by Y"', function () {
 it('replies write one entry of the right type', function (string $who, ReplyType $type, ActivityType $expected) {
     $actor = $who === 'agent' ? $this->agent : $this->customer;
 
-    $log = activitiesDuring(fn () => app(AddReply::class)($actor, $this->ticket, 'Hello', $type));
+    $log = activitiesDuring(fn () => app(ConversationService::class)->addReply($actor, $this->ticket, 'Hello', $type));
 
     expect($log->pluck('type')->all())->toBe([$expected]);
 })->with([
@@ -164,11 +158,11 @@ it('system actions write entries with no actor', function () {
     User::query()->whereKey($this->agent->id)->update(['is_available' => false]);
 
     $skip = activitiesDuring(fn () => (new AutoAssignTicket($orphan->id))->handle(
-        app(LeastWorkloadStrategy::class), app(ClaimTicket::class), app(TicketActivityRecorder::class),
+        app(AssignmentService::class),
     ));
 
     $breached = Ticket::factory()->inProgress()->breached()->create();
-    $sla = activitiesDuring(fn () => app(EscalateTicket::class)($breached->id, EscalationKind::Breach));
+    $sla = activitiesDuring(fn () => app(SlaService::class)->escalate($breached->id, EscalationKind::Breach));
 
     // A breach is two facts: the SLA was missed, and the ticket escalated.
     expect($skip->pluck('type')->all())->toBe([ActivityType::AutoAssignSkipped])
@@ -178,12 +172,12 @@ it('system actions write entries with no actor', function () {
 });
 
 it('records no history when the action changes nothing or rolls back', function () {
-    expect(activitiesDuring(fn () => app(UpdateTicket::class)($this->admin, $this->ticket, ['subject' => $this->ticket->subject])))->toBeEmpty();
+    expect(activitiesDuring(fn () => app(TicketService::class)->update($this->admin, $this->ticket, ['subject' => $this->ticket->subject])))->toBeEmpty();
 
     expect(activitiesDuring(function () {
         try {
-            app(ChangeTicketStatus::class)($this->agent, $this->ticket, TicketStatus::Closed); // illegal
-        } catch (InvalidTicketTransition) {
+            app(TicketService::class)->changeStatus($this->agent, $this->ticket, TicketStatus::Closed); // illegal
+        } catch (ValidationException) {
         }
     }))->toBeEmpty();
 });

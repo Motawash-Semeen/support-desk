@@ -1,7 +1,6 @@
 <?php
 
 use App\Models\User;
-use App\Modules\Notifications\Notifications\TicketResolvedNotification;
 use App\Modules\Tickets\Models\Ticket;
 use Illuminate\Support\Facades\DB;
 
@@ -10,8 +9,8 @@ beforeEach(function () {
     $this->ticket = Ticket::factory()->for($this->customer, 'creator')->create();
 
     // Queue is sync in tests, so the database channel writes immediately.
-    $this->customer->notify(new TicketResolvedNotification($this->ticket));
-    $this->customer->notify(new TicketResolvedNotification($this->ticket));
+    $this->customer->notify(resolvedNotification($this->ticket));
+    $this->customer->notify(resolvedNotification($this->ticket));
     $this->notification = $this->customer->notifications()->firstOrFail();
 });
 
@@ -61,7 +60,7 @@ it('cannot read or mark someone else\'s notification', function () {
 
 it('marks all as read for the current user only', function () {
     $other = User::factory()->create();
-    $other->notify(new TicketResolvedNotification($this->ticket));
+    $other->notify(resolvedNotification($this->ticket));
 
     $this->actingAs($this->customer)->post(route('notifications.read-all'))->assertRedirect();
 

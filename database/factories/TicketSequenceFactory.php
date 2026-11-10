@@ -5,9 +5,6 @@ namespace Database\Factories;
 use App\Modules\Tickets\Models\TicketSequence;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
-/**
- * @extends Factory<TicketSequence>
- */
 class TicketSequenceFactory extends Factory
 {
     protected $model = TicketSequence::class;

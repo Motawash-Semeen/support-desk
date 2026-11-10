@@ -1,7 +1,4 @@
-{{--
-    Assignment controls. Visibility mirrors the policy; the server decides
-    again, and a lost race comes back as a 409 conflict page.
---}}
+{{-- Assignment controls; the server checks every action again. --}}
 @php
     $user = auth()->user();
     $canAccept = $ticket->assigned_agent_id === null && $user->can('accept', $ticket);
@@ -22,7 +19,7 @@
             @if ($canAssign)
                 <form method="POST" action="{{ route('tickets.assign', $ticket) }}" class="space-y-1.5">
                     @csrf
-                    {{-- The assignee this page was rendered with; guards against concurrent changes. --}}
+                    {{-- The assignee shown on this page, to detect concurrent changes. --}}
                     <input type="hidden" name="expected_agent_id" value="{{ $ticket->assigned_agent_id }}">
                     <label for="agent_id" class="field-label">
                         {{ $ticket->assigned_agent_id ? __('Reassign to') : __('Assign to') }}

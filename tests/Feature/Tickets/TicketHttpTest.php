@@ -2,14 +2,12 @@
 
 use App\Models\User;
 use App\Modules\Activity\Enums\ActivityType;
-use App\Modules\Sla\Services\SlaCalculator;
-use App\Modules\Sla\Services\SlaResult;
+use App\Modules\Sla\SlaService;
 use App\Modules\Tickets\Enums\TicketPriority;
 use App\Modules\Tickets\Enums\TicketStatus;
 use App\Modules\Tickets\Models\Category;
 use App\Modules\Tickets\Models\Ticket;
-use App\Modules\Tickets\Services\TicketNumberGenerator;
-use Carbon\CarbonInterface;
+use App\Modules\Tickets\TicketService;
 use Illuminate\Database\QueryException;
 
 beforeEach(function () {
@@ -80,13 +78,9 @@ it('lets customers choose any priority, including critical', function () {
 
 it('shows a friendly message instead of a 500 when saving fails', function () {
     // Fail mid-transaction (after the number was issued) with a database error.
-    $this->app->instance(SlaCalculator::class, new class implements SlaCalculator
-    {
-        public function calculate(TicketPriority $priority, CarbonInterface $from): SlaResult
-        {
-            throw new QueryException('mysql', 'select * from sla_policies', [], new Exception('Deadlock found'));
-        }
-    });
+    $this->mock(SlaService::class)
+        ->shouldReceive('calculate')
+        ->andThrow(new QueryException('mysql', 'select * from sla_policies', [], new Exception('Deadlock found')));
 
     $this->actingAs($this->customer)
         ->from(route('tickets.create'))
@@ -96,7 +90,7 @@ it('shows a friendly message instead of a 500 when saving fails', function () {
         ->assertSessionHasInput('subject', 'VPN drops every hour');
 
     expect(Ticket::count())->toBe(0)
-        ->and(app(TicketNumberGenerator::class)->generate())->toEndWith('-000001'); // number was rolled back
+        ->and(app(TicketService::class)->reserveNumbers(1)[0])->toEndWith('-000001'); // number was rolled back
 });
 
 /* Index tabs --------------------------------------------------------- */

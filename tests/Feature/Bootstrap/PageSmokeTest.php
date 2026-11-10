@@ -5,7 +5,6 @@ use App\Modules\Activity\Models\TicketActivity;
 use App\Modules\Conversation\Models\Attachment;
 use App\Modules\Conversation\Models\TicketReply;
 use App\Modules\Imports\Models\TicketImport;
-use App\Modules\Notifications\Notifications\TicketResolvedNotification;
 use App\Modules\Tickets\Models\Category;
 use App\Modules\Tickets\Models\Ticket;
 use Illuminate\Support\Facades\Route;
@@ -38,8 +37,8 @@ beforeEach(function () {
         TicketActivity::factory()->for($ticket)->count(3)->create();
     }
 
-    $this->customer->notify(new TicketResolvedNotification($this->tickets[2]));
-    $this->agent->notify(new TicketResolvedNotification($this->tickets[1]));
+    $this->customer->notify(resolvedNotification($this->tickets[2]));
+    $this->agent->notify(resolvedNotification($this->tickets[1]));
     $this->import = TicketImport::factory()->completed(5, 1)->create(['user_id' => $this->admin->id]);
 });
 

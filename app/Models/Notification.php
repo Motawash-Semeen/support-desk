@@ -7,10 +7,8 @@ use Illuminate\Database\Eloquent\Prunable;
 use Illuminate\Notifications\DatabaseNotification;
 
 /**
- * The in-app notification model (database channel), made prunable: read
- * notifications older than support.notifications.prune_read_after_days are
- * deleted by `model:prune`. Unread ones are kept however old.
- * Wired in through User::notifications().
+ * In-app notification, prunable: read ones older than
+ * support.notifications.prune_read_after_days are deleted by model:prune.
  */
 class Notification extends DatabaseNotification
 {

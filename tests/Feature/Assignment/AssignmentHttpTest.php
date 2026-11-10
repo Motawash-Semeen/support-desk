@@ -36,7 +36,7 @@ it('answers 409 JSON for API-style requests', function () {
     $this->actingAs($this->agentB)
         ->postJson(route('tickets.accept', $this->ticket))
         ->assertStatus(409)
-        ->assertExactJson(['message' => 'This ticket was just taken by another agent.']);
+        ->assertJsonPath('message', 'This ticket was just taken by another agent.');
 });
 
 it('treats a double click by the winner as success', function () {

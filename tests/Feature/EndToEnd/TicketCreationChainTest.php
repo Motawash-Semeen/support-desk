@@ -14,7 +14,6 @@ use Symfony\Component\Mailer\SentMessage;
  * transport. Every other test fakes at least one of these seams.
  */
 
-/** @return array<string, list<string>> recipient email => subjects */
 function deliveredMail(): array
 {
     return collect(app('mailer')->getSymfonyTransport()->messages())

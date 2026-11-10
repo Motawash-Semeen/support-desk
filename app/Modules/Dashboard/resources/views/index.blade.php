@@ -3,17 +3,17 @@
 
 @php
     $cards = [
-        ['label' => __('Active'), 'value' => $stats->totalActive, 'tone' => 'ink', 'icon' => 'ticket', 'query' => ['scope' => 'active']],
-        ['label' => __('Unassigned'), 'value' => $stats->unassignedActive, 'tone' => 'amber', 'icon' => 'inbox', 'query' => ['scope' => 'active', 'assigned_agent_id' => 'unassigned']],
-        ['label' => __('Critical'), 'value' => $stats->criticalActive, 'tone' => 'red', 'icon' => 'bolt', 'query' => ['scope' => 'active', 'priority' => ['critical']]],
-        ['label' => __('SLA breached'), 'value' => $stats->slaBreachedActive, 'tone' => 'red', 'icon' => 'alert', 'query' => ['scope' => 'active', 'sla_status' => 'breached']],
-        ['label' => __('At risk'), 'value' => $stats->approachingActive, 'tone' => 'amber', 'icon' => 'clock', 'query' => ['scope' => 'active', 'sla_status' => 'approaching']],
-        ['label' => __('Escalated'), 'value' => $stats->escalatedActive, 'tone' => 'red', 'icon' => 'shield', 'query' => ['scope' => 'active', 'escalated' => 1]],
-        ['label' => __('Resolved / closed'), 'value' => $stats->resolvedTotal, 'tone' => 'green', 'icon' => 'check-circle', 'query' => ['scope' => 'closed']],
-        ['label' => __('Resolved today'), 'value' => $stats->resolvedToday, 'tone' => 'green', 'icon' => 'sparkles', 'query' => ['scope' => 'closed', 'sort' => 'updated_at', 'direction' => 'desc']],
+        ['label' => __('Active'), 'value' => $stats['totalActive'], 'tone' => 'ink', 'icon' => 'ticket', 'query' => ['scope' => 'active']],
+        ['label' => __('Unassigned'), 'value' => $stats['unassignedActive'], 'tone' => 'amber', 'icon' => 'inbox', 'query' => ['scope' => 'active', 'assigned_agent_id' => 'unassigned']],
+        ['label' => __('Critical'), 'value' => $stats['criticalActive'], 'tone' => 'red', 'icon' => 'bolt', 'query' => ['scope' => 'active', 'priority' => ['critical']]],
+        ['label' => __('SLA breached'), 'value' => $stats['slaBreachedActive'], 'tone' => 'red', 'icon' => 'alert', 'query' => ['scope' => 'active', 'sla_status' => 'breached']],
+        ['label' => __('At risk'), 'value' => $stats['approachingActive'], 'tone' => 'amber', 'icon' => 'clock', 'query' => ['scope' => 'active', 'sla_status' => 'approaching']],
+        ['label' => __('Escalated'), 'value' => $stats['escalatedActive'], 'tone' => 'red', 'icon' => 'shield', 'query' => ['scope' => 'active', 'escalated' => 1]],
+        ['label' => __('Resolved / closed'), 'value' => $stats['resolvedTotal'], 'tone' => 'green', 'icon' => 'check-circle', 'query' => ['scope' => 'closed']],
+        ['label' => __('Resolved today'), 'value' => $stats['resolvedToday'], 'tone' => 'green', 'icon' => 'sparkles', 'query' => ['scope' => 'closed', 'sort' => 'updated_at', 'direction' => 'desc']],
     ];
-    $maxPriority = max([1, ...array_values($stats->byPriority)]);
-    $maxAgent = max([1, ...array_column($stats->byAgent, 'active')]);
+    $maxPriority = max([1, ...array_values($stats['byPriority'])]);
+    $maxAgent = max([1, ...array_column($stats['byAgent'], 'active')]);
     $barColor = fn (TicketPriority $p) => match ($p) {
         TicketPriority::Critical => 'bg-rose-500',
         TicketPriority::High => 'bg-orange-400',
@@ -23,7 +23,7 @@
 @endphp
 
 <x-app-layout :title="__('Dashboard')"
-              :subtitle="($stats->scope === 'global' ? __('All tickets') : __('Your tickets and the unassigned queue')).' · '.__('updated :time', ['time' => BusinessTime::format(\Carbon\CarbonImmutable::parse($stats->generatedAt), 'H:i:s')])">
+              :subtitle="($stats['scope'] === 'global' ? __('All tickets') : __('Your tickets and the unassigned queue')).' · '.__('updated :time', ['time' => BusinessTime::format(\Carbon\CarbonImmutable::parse($stats['generatedAt']), 'H:i:s')])">
     <x-slot name="actions">
         <a href="{{ route('staff.unassigned') }}" class="btn btn-secondary"><x-icon name="inbox" class="h-4 w-4" /> {{ __('Unassigned queue') }}</a>
         <a href="{{ route('tickets.index') }}" class="btn btn-primary"><x-icon name="ticket" class="h-4 w-4" /> {{ __('All tickets') }}</a>
@@ -38,7 +38,7 @@
     <div class="mt-6 grid gap-6 lg:grid-cols-5">
         <x-card :title="__('Active tickets by priority')" class="lg:col-span-2">
             <ul class="space-y-3">
-                @foreach ($stats->byPriority as $priority => $count)
+                @foreach ($stats['byPriority'] as $priority => $count)
                     @php($enum = TicketPriority::from($priority))
                     <li>
                         <a href="{{ route('tickets.index', ['scope' => 'active', 'priority' => [$priority]]) }}" class="group block">
@@ -56,7 +56,7 @@
         </x-card>
 
         <x-card :title="__('Active tickets by agent')" :padded="false" class="lg:col-span-3">
-            @if ($stats->byAgent === [])
+            @if ($stats['byAgent'] === [])
                 <x-empty-state icon="users" :title="__('No assigned active tickets.')" />
             @else
                 <table class="table">
@@ -69,7 +69,7 @@
                         </tr>
                     </thead>
                     <tbody class="divide-y divide-ink-100">
-                        @foreach ($stats->byAgent as $row)
+                        @foreach ($stats['byAgent'] as $row)
                             <tr>
                                 <td class="whitespace-nowrap">
                                     <a href="{{ route('tickets.index', ['scope' => 'active', 'assigned_agent_id' => $row['id']]) }}" class="inline-flex items-center gap-2 font-medium text-ink-800 hover:text-brand-700">
@@ -98,11 +98,11 @@
     </div>
 
     <x-card :title="__('Recent escalations')" :padded="false" class="mt-6">
-        @if ($stats->recentEscalations === [])
+        @if ($stats['recentEscalations'] === [])
             <x-empty-state icon="shield" :title="__('No escalations.')" :description="__('Tickets that breach their SLA show up here.')" />
         @else
             <ul class="divide-y divide-ink-100">
-                @foreach ($stats->recentEscalations as $escalation)
+                @foreach ($stats['recentEscalations'] as $escalation)
                     <li class="flex flex-wrap items-center justify-between gap-3 px-5 py-3 text-sm">
                         <div class="flex min-w-0 items-center gap-3">
                             <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-rose-50 text-rose-600"><x-icon name="alert" class="h-4 w-4" /></span>

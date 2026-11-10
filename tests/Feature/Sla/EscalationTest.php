@@ -3,23 +3,20 @@
 use App\Models\Notification as DatabaseNotificationModel;
 use App\Models\User;
 use App\Modules\Activity\Enums\ActivityType;
-use App\Modules\Assignment\Jobs\AutoAssignTicket;
-use App\Modules\Notifications\Notifications\TicketEscalatedNotification;
-use App\Modules\Sla\Actions\EscalateTicket;
+use App\Modules\Assignment\AutoAssignTicket;
+use App\Modules\Notifications\TicketNotification;
 use App\Modules\Sla\Enums\EscalationKind;
-use App\Modules\Sla\Events\SlaBreached;
-use App\Modules\Sla\Events\SlaWarningReached;
-use App\Modules\Sla\Jobs\EscalateTicketJob;
-use App\Modules\Tickets\Actions\UpdateTicket;
+use App\Modules\Sla\EscalateTicketJob;
+use App\Modules\Sla\SlaService;
 use App\Modules\Tickets\Enums\TicketPriority;
 use App\Modules\Tickets\Enums\TicketStatus;
 use App\Modules\Tickets\Models\Ticket;
+use App\Modules\Tickets\TicketService;
 use Carbon\Carbon;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
-use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
@@ -57,35 +54,32 @@ it('queues one warning job when sla_warning_at is crossed, even if the scan runs
 });
 
 it('applies a warning exactly once however many times the job runs', function () {
-    Event::fake([SlaWarningReached::class]);
     $ticket = Ticket::factory()->approaching()->assigned($this->agent)->create();
 
     $job = new EscalateTicketJob($ticket->id, EscalationKind::Warning);
-    $job->handle(app(EscalateTicket::class));
-    $job->handle(app(EscalateTicket::class)); // duplicate / retry
-    $job->handle(app(EscalateTicket::class));
+    $job->handle(app(SlaService::class));
+    $job->handle(app(SlaService::class)); // duplicate / retry
+    $job->handle(app(SlaService::class));
 
-    Event::assertDispatchedTimes(SlaWarningReached::class, 1);
+    expect(Notification::sent($this->agent, TicketNotification::class, ofKind('sla_warning')))->toHaveCount(1);
     expect($ticket->activities()->where('type', ActivityType::SlaWarning)->count())->toBe(1)
         ->and($ticket->fresh()->warning_notified_at)->not->toBeNull();
 });
 
 it('warns exactly once across three scans with a real (sync) queue', function () {
-    Event::fake([SlaWarningReached::class]);
     $ticket = Ticket::factory()->approaching()->assigned($this->agent)->create();
 
     foreach (range(1, 3) as $run) {
         $this->artisan('sla:scan')->assertSuccessful();
     }
 
-    Event::assertDispatchedTimes(SlaWarningReached::class, 1);
+    expect(Notification::sent($this->agent, TicketNotification::class, ofKind('sla_warning')))->toHaveCount(1);
     expect($ticket->activities()->where('type', ActivityType::SlaWarning)->count())->toBe(1);
 });
 
 /* Breach ----------------------------------------------------------------- */
 
-it('marks a breach escalated with both activities and one SlaBreached event', function () {
-    Event::fake([SlaBreached::class]);
+it('marks a breach escalated with both activities and one breach notification', function () {
     $ticket = Ticket::factory()->inProgress()->assigned($this->agent)->create(['due_at' => now()->subMinutes(5), 'sla_warning_at' => now()->subHour()]);
 
     $this->artisan('sla:scan');
@@ -99,14 +93,14 @@ it('marks a breach escalated with both activities and one SlaBreached event', fu
         ->and($ticket->activities()->whereIn('type', [ActivityType::SlaBreached, ActivityType::Escalated])->orderBy('id')->pluck('type')->all())
         ->toBe([ActivityType::SlaBreached, ActivityType::Escalated]);
 
-    Event::assertDispatchedTimes(SlaBreached::class, 1);
+    expect(Notification::sent($this->agent, TicketNotification::class, ofKind('sla_breached')))->toHaveCount(1);
 });
 
 it('tries to auto-assign a ticket that is unassigned at breach time', function () {
     Queue::fake();
     $ticket = Ticket::factory()->create(['due_at' => now()->subMinute(), 'sla_warning_at' => now()->subHour()]);
 
-    expect(app(EscalateTicket::class)($ticket->id, EscalationKind::Breach))->toBeTrue();
+    expect(app(SlaService::class)->escalate($ticket->id, EscalationKind::Breach))->toBeTrue();
 
     Queue::assertPushed(AutoAssignTicket::class, fn ($job) => $job->ticketId === $ticket->id);
 });
@@ -119,8 +113,8 @@ it('never escalates resolved or closed tickets', function (string $state) {
     Queue::assertNothingPushed();
 
     // Even a job queued just before the ticket was resolved does nothing.
-    expect(app(EscalateTicket::class)($ticket->id, EscalationKind::Warning))->toBeFalse()
-        ->and(app(EscalateTicket::class)($ticket->id, EscalationKind::Breach))->toBeFalse()
+    expect(app(SlaService::class)->escalate($ticket->id, EscalationKind::Warning))->toBeFalse()
+        ->and(app(SlaService::class)->escalate($ticket->id, EscalationKind::Breach))->toBeFalse()
         ->and($ticket->fresh()->is_escalated)->toBeFalse()
         ->and($ticket->activities()->count())->toBe(0);
 })->with(['resolved', 'closed']);
@@ -135,7 +129,7 @@ it('re-arms the flags when a priority change moves the deadline, keeping the esc
     $this->artisan('sla:scan'); // warning + breach + escalation level 1
     expect($ticket->fresh()->breached_notified_at)->not->toBeNull();
 
-    app(UpdateTicket::class)($this->admins[0], $ticket, ['priority' => 'low']); // 2880 business minutes from creation
+    app(TicketService::class)->update($this->admins[0], $ticket, ['priority' => 'low']); // 2880 business minutes from creation
 
     $rearmed = $ticket->fresh();
     expect($rearmed->due_at->isFuture())->toBeTrue()
@@ -174,9 +168,9 @@ it('escalates to level 2 once, after the configured minutes past the deadline', 
         ->and($ticket->activities()->where('type', ActivityType::Escalated)->count())->toBe(2);
 
     foreach ($this->admins as $admin) {
-        Notification::assertSentToTimes($admin, TicketEscalatedNotification::class, 1);
+        expect(Notification::sent($admin, TicketNotification::class, ofKind('ticket_escalated')))->toHaveCount(1);
     }
-    Notification::assertNotSentTo($this->agent, TicketEscalatedNotification::class);
+    Notification::assertNotSentTo($this->agent, TicketNotification::class, ofKind('ticket_escalated'));
 });
 
 /* Scan mechanics ----------------------------------------------------------- */

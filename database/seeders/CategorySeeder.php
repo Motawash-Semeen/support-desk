@@ -8,7 +8,6 @@ use Illuminate\Support\Str;
 
 class CategorySeeder extends Seeder
 {
-    /** @var list<string> */
     public const CATEGORIES = [
         'Account & Login',
         'Billing',

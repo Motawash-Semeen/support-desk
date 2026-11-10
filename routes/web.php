@@ -9,14 +9,8 @@ Route::get('/', function () {
 });
 
 /*
-| Core routes only. Each module registers its own routes from
-| app/Modules/{Module}/routes/web.php (L5Modular, inside the 'web' group).
-|
-| Authorization layers:
-|  - 'auth' (and 'verified' for the support desk) on every module route.
-|  - 'role:...' for coarse groups only (staff area, admin area).
-|  - Every controller action calls $this->authorize() against a policy/gate.
-|  - Ticket lists are additionally scoped with Ticket::visibleTo().
+| Core routes only; each module has its own routes/web.php. Lists are limited
+| with Ticket::visibleTo() and every ticket action asks TicketPolicy.
 */
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/dashboard', DashboardController::class)->name('dashboard');

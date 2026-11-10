@@ -2,15 +2,7 @@
 @use('App\Modules\Tickets\Enums\TicketPriority')
 @use('App\Modules\Tickets\Enums\TicketStatus')
 @use('App\Support\BusinessTime')
-{{--
-    Ticket list filters. A GET form, so every filtered view is a shareable URL
-    (empty fields are left out on submit to keep it short).
-    Staff-only fields are not rendered for customers, and are ignored
-    server-side if sent anyway.
-
-    Layout: scope tabs, then one toolbar (search, Filters toggle, sort), the
-    applied filters as removable chips, and the filter panel.
---}}
+{{-- Ticket list filters: a GET form, so every view is a shareable URL. Staff-only fields are not shown to customers and are ignored if sent. --}}
 @php
     $query = request()->query();
     $selected = fn (string $key) => (array) ($filters[$key] ?? []);

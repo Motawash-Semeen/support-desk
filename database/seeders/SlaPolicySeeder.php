@@ -6,10 +6,7 @@ use App\Modules\Sla\Models\SlaPolicy;
 use App\Modules\Tickets\Enums\TicketPriority;
 use Illuminate\Database\Seeder;
 
-/**
- * One SLA policy per priority, initialised from config/support.php.
- * Idempotent: re-running restores the configured defaults.
- */
+/** One SLA policy per priority from config/support.php; re-running restores the defaults. */
 class SlaPolicySeeder extends Seeder
 {
     public function run(): void

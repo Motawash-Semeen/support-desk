@@ -9,11 +9,7 @@ use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
 
-/**
- * The support team and its customers. Every account's password is "password".
- * Idempotent by email. Emails use the reserved .test domain, so nothing can
- * ever be delivered to a real mailbox.
- */
+/** The team and its customers. Every password is "password"; emails use the reserved .test domain. */
 class UserSeeder extends Seeder
 {
     public const PASSWORD = 'password';
@@ -69,7 +65,7 @@ class UserSeeder extends Seeder
     {
         $user = User::query()->firstOrNew(['email' => $email]);
 
-        // role and is_available are not mass assignable by design; forceFill is the explicit path.
+        // role and is_available are not mass assignable.
         $user->forceFill([
             'name' => $name,
             'password' => $user->exists ? $user->password : $hashedPassword,

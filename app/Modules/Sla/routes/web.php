@@ -1,9 +1,8 @@
 <?php
 
-use App\Modules\Sla\Http\Controllers\SlaSettingsController;
+use App\Modules\Sla\SlaSettingsController;
 use Illuminate\Support\Facades\Route;
 
-// L5Modular wraps this file in the 'web' middleware group.
 Route::middleware(['auth', 'verified', 'role:admin'])->group(function () {
     Route::controller(SlaSettingsController::class)->prefix('admin/sla-settings')->name('admin.sla-settings.')->group(function () {
         Route::get('/', 'index')->name('index');

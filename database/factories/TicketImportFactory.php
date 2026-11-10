@@ -8,9 +8,6 @@ use App\Modules\Imports\Models\TicketImport;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
 
-/**
- * @extends Factory<TicketImport>
- */
 class TicketImportFactory extends Factory
 {
     protected $model = TicketImport::class;

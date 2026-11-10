@@ -1,7 +1,6 @@
 <?php
 
-use App\Modules\Sla\Exceptions\NoBusinessHoursConfigured;
-use App\Modules\Sla\Services\BusinessCalendar;
+use App\Modules\Sla\BusinessCalendar;
 use Carbon\CarbonImmutable;
 use Tests\Support\SlaFixtures as F;
 
@@ -119,15 +118,15 @@ it('rejects negative minutes', function () {
 it('throws instead of looping forever when no day is worked', function () {
     $calendar = new BusinessCalendar(array_fill(0, 7, null), [], 'Asia/Dhaka');
 
-    expect(fn () => $calendar->nextOpening(F::local('2026-11-05 10:00')))->toThrow(NoBusinessHoursConfigured::class)
-        ->and(fn () => $calendar->addBusinessMinutes(F::local('2026-11-05 10:00'), 60))->toThrow(NoBusinessHoursConfigured::class);
+    expect(fn () => $calendar->nextOpening(F::local('2026-11-05 10:00')))->toThrow(RuntimeException::class)
+        ->and(fn () => $calendar->addBusinessMinutes(F::local('2026-11-05 10:00'), 60))->toThrow(RuntimeException::class);
 });
 
 it('throws when the remaining minutes need more than the guard allows', function () {
     // One working minute per day: 400 minutes need 400 working days > 366.
     $calendar = new BusinessCalendar(array_fill(0, 7, ['09:00', '09:01']), [], 'Asia/Dhaka');
 
-    expect(fn () => $calendar->addBusinessMinutes(F::local('2026-11-05 09:00'), 400))->toThrow(NoBusinessHoursConfigured::class);
+    expect(fn () => $calendar->addBusinessMinutes(F::local('2026-11-05 09:00'), 400))->toThrow(RuntimeException::class);
 });
 
 it('rejects a day that closes before it opens and malformed times', function () {

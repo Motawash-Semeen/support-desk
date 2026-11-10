@@ -2,10 +2,9 @@
 
 use App\Models\User;
 use App\Modules\Activity\Enums\ActivityType;
-use App\Modules\Notifications\Notifications\SlaApproachingNotification;
-use App\Modules\Notifications\Notifications\SlaBreachedNotification;
-use App\Modules\Sla\Actions\EscalateTicket;
+use App\Modules\Notifications\TicketNotification;
 use App\Modules\Sla\Enums\EscalationKind;
+use App\Modules\Sla\SlaService;
 use App\Modules\Tickets\Models\Ticket;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\Notification;
@@ -29,8 +28,8 @@ it('warns the assignee once when a ticket reaches its warning point', function (
     $this->artisan('sla:scan --verbose')->expectsOutputToContain('queued 1 warning, 0 breach')->assertSuccessful();
     $this->artisan('sla:scan --verbose')->expectsOutputToContain('queued 0 warning, 0 breach')->assertSuccessful();
 
-    Notification::assertSentToTimes($this->agent, SlaApproachingNotification::class, 1);
-    Notification::assertNotSentTo($this->admins, SlaApproachingNotification::class);
+    expect(Notification::sent($this->agent, TicketNotification::class, ofKind('sla_warning')))->toHaveCount(1);
+    Notification::assertNotSentTo($this->admins, TicketNotification::class, ofKind('sla_warning'));
 
     expect($ticket->fresh()->warning_notified_at)->not->toBeNull()
         ->and($ticket->activities()->where('type', ActivityType::SlaWarning)->count())->toBe(1);
@@ -41,7 +40,7 @@ it('warns admins about an unassigned ticket', function () {
 
     $this->artisan('sla:scan')->assertSuccessful();
 
-    Notification::assertSentTo($this->admins, SlaApproachingNotification::class);
+    Notification::assertSentTo($this->admins, TicketNotification::class, ofKind('sla_warning'));
 });
 
 it('alerts the assignee and every admin once on a breach', function () {
@@ -50,9 +49,9 @@ it('alerts the assignee and every admin once on a breach', function () {
     $this->artisan('sla:scan --verbose')->expectsOutputToContain('queued 0 warning, 1 breach')->assertSuccessful();
     $this->artisan('sla:scan')->assertSuccessful();
 
-    Notification::assertSentToTimes($this->agent, SlaBreachedNotification::class, 1);
+    expect(Notification::sent($this->agent, TicketNotification::class, ofKind('sla_breached')))->toHaveCount(1);
     foreach ($this->admins as $admin) {
-        Notification::assertSentToTimes($admin, SlaBreachedNotification::class, 1);
+        expect(Notification::sent($admin, TicketNotification::class, ofKind('sla_breached')))->toHaveCount(1);
     }
 
     expect($ticket->fresh()->breached_notified_at)->not->toBeNull();
@@ -61,10 +60,10 @@ it('alerts the assignee and every admin once on a breach', function () {
 it('lets only one of two overlapping runs claim a milestone', function () {
     $ticket = Ticket::factory()->inProgress()->breached()->assigned($this->agent)->create();
 
-    expect(app(EscalateTicket::class)($ticket->id, EscalationKind::Breach))->toBeTrue()
-        ->and(app(EscalateTicket::class)($ticket->id, EscalationKind::Breach))->toBeFalse();
+    expect(app(SlaService::class)->escalate($ticket->id, EscalationKind::Breach))->toBeTrue()
+        ->and(app(SlaService::class)->escalate($ticket->id, EscalationKind::Breach))->toBeFalse();
 
-    Notification::assertSentToTimes($this->agent, SlaBreachedNotification::class, 1);
+    expect(Notification::sent($this->agent, TicketNotification::class, ofKind('sla_breached')))->toHaveCount(1);
 });
 
 it('ignores finished and on-track tickets', function () {
@@ -84,5 +83,5 @@ it('notifies again after the deadline moves and the markers are cleared', functi
     $ticket->fresh()->update(['warning_notified_at' => null]);
     $this->artisan('sla:scan');
 
-    Notification::assertSentToTimes($this->agent, SlaApproachingNotification::class, 2);
+    expect(Notification::sent($this->agent, TicketNotification::class, ofKind('sla_warning')))->toHaveCount(2);
 });

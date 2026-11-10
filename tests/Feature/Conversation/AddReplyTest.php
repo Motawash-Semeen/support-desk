@@ -2,25 +2,25 @@
 
 use App\Models\User;
 use App\Modules\Activity\Enums\ActivityType;
-use App\Modules\Activity\Services\TicketActivityRecorder;
-use App\Modules\Conversation\Actions\AddReply;
+use App\Modules\Conversation\ConversationService;
 use App\Modules\Conversation\Enums\ReplyType;
-use App\Modules\Conversation\Events\ReplyAdded;
-use App\Modules\Conversation\Exceptions\ReplyNotAllowed;
 use App\Modules\Conversation\Models\Attachment;
 use App\Modules\Conversation\Models\TicketReply;
+use App\Modules\Notifications\TicketNotification;
+use App\Modules\Notifications\TicketNotifier;
 use App\Modules\Tickets\Enums\TicketStatus;
 use App\Modules\Tickets\Models\Ticket;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 
 beforeEach(function () {
     Storage::fake('private');
     $this->customer = User::factory()->create();
     $this->agent = User::factory()->agent()->create(['name' => 'Sam Agent']);
-    $this->reply = fn (User $actor, Ticket $ticket, ReplyType $type = ReplyType::Public, array $files = [], string $body = 'Hello') => app(AddReply::class)($actor, $ticket, $body, $type, $files);
+    $this->reply = fn (User $actor, Ticket $ticket, ReplyType $type = ReplyType::Public, array $files = [], string $body = 'Hello') => app(ConversationService::class)->addReply($actor, $ticket, $body, $type, $files);
 });
 
 it('sets first_response_at on the first public staff reply only', function () {
@@ -89,7 +89,7 @@ it('records the right activity type without the reply text', function (string $w
 it('blocks public replies on closed tickets but allows staff notes', function () {
     $ticket = Ticket::factory()->for($this->customer, 'creator')->closed()->assigned($this->agent)->create();
 
-    expect(fn () => ($this->reply)($this->customer, $ticket))->toThrow(ReplyNotAllowed::class);
+    expect(fn () => ($this->reply)($this->customer, $ticket))->toThrow(ValidationException::class);
 
     ($this->reply)($this->agent, $ticket, ReplyType::InternalNote);
     expect(TicketReply::query()->sole()->type)->toBe(ReplyType::InternalNote);
@@ -102,20 +102,19 @@ it('refuses an internal note from a customer even when called directly', functio
     expect(TicketReply::count())->toBe(0);
 });
 
-it('dispatches ReplyAdded after commit with the reply type', function () {
-    Event::fake([ReplyAdded::class]);
+it('tells the assignee about a note someone else wrote, after commit', function () {
+    Notification::fake();
+    $admin = User::factory()->admin()->create();
     $ticket = Ticket::factory()->for($this->customer, 'creator')->assigned($this->agent)->create();
 
-    ($this->reply)($this->agent, $ticket, ReplyType::InternalNote);
+    ($this->reply)($admin, $ticket, ReplyType::InternalNote);
 
-    Event::assertDispatched(ReplyAdded::class, fn (ReplyAdded $e) => $e->type === ReplyType::InternalNote && $e->author->is($this->agent));
+    Notification::assertSentTo($this->agent, TicketNotification::class, ofKind('internal_note_added'));
+    Notification::assertNothingSentTo($this->customer);
 });
 
-it('does not dispatch ReplyAdded when the surrounding transaction rolls back', function () {
-    $fired = 0;
-    Event::listen(ReplyAdded::class, function () use (&$fired) {
-        $fired++;
-    });
+it('sends nothing when the surrounding transaction rolls back', function () {
+    Notification::fake();
     $ticket = Ticket::factory()->for($this->customer, 'creator')->create();
 
     try {
@@ -128,7 +127,8 @@ it('does not dispatch ReplyAdded when the surrounding transaction rolls back', f
         // expected
     }
 
-    expect($fired)->toBe(0)->and(TicketReply::count())->toBe(0);
+    Notification::assertNothingSent();
+    expect(TicketReply::count())->toBe(0);
 });
 
 it('stores attachments privately under tickets/{id}/{Y}/{m}/{uuid}.{ext} with checksum and size', function () {
@@ -151,8 +151,9 @@ it('stores attachments privately under tickets/{id}/{Y}/{m}/{uuid}.{ext} with ch
 
 it('removes stored files when the reply transaction rolls back', function () {
     $ticket = Ticket::factory()->for($this->customer, 'creator')->create();
-    $this->mock(TicketActivityRecorder::class)
-        ->shouldReceive('record')
+    // Fails late in the transaction, after the files were written.
+    $this->mock(TicketNotifier::class)
+        ->shouldReceive('replyAdded')
         ->andThrow(new RuntimeException('database went away'));
 
     $files = [UploadedFile::fake()->create('a.pdf', 10, 'application/pdf'), UploadedFile::fake()->create('b.txt', 1, 'text/plain')];

@@ -8,9 +8,6 @@ use App\Modules\Conversation\Models\TicketReply;
 use App\Modules\Tickets\Models\Ticket;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
-/**
- * @extends Factory<TicketReply>
- */
 class TicketReplyFactory extends Factory
 {
     protected $model = TicketReply::class;

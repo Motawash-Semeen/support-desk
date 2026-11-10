@@ -8,15 +8,10 @@ use Illuminate\Support\Facades\Vite;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * Baseline security headers on every web response.
- *
- * CSP: scripts only from our origin, plus inline scripts carrying the
- * per-request nonce (Vite::useCspNonce adds it to @vite tags; the two inline
- * Alpine helpers use Vite::cspNonce()). 'unsafe-eval' is required by the
- * standard Alpine.js build, which evaluates x-* expressions with Function().
- * Styles allow 'unsafe-inline' for Alpine's x-show/x-cloak style toggling.
- * Fonts are self-hosted (bundled by Vite), so no third-party origin is
- * allowed. While `npm run dev` is running, the Vite dev server origin is too.
+ * Security headers on every web response. CSP allows scripts from our origin and
+ * inline scripts with the per-request nonce; 'unsafe-eval' is needed by Alpine and
+ * 'unsafe-inline' styles by x-show/x-cloak. Fonts are self-hosted. The Vite dev
+ * server is allowed while `npm run dev` runs.
  */
 class SecurityHeaders
 {
@@ -31,8 +26,7 @@ class SecurityHeaders
         $response->headers->set('Referrer-Policy', 'strict-origin-when-cross-origin');
         $response->headers->set('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=()');
         $response->headers->set('Cross-Origin-Opener-Policy', 'same-origin');
-        // A response with its own, stricter policy keeps it (attachment downloads
-        // send "default-src 'none'; sandbox").
+        // A response with its own stricter policy (attachment downloads) keeps it.
         if (! $response->headers->has('Content-Security-Policy')) {
             $response->headers->set('Content-Security-Policy', $this->policy($nonce));
         }
@@ -62,7 +56,7 @@ class SecurityHeaders
         ]);
     }
 
-    /** " http://localhost:5173" while the Vite dev server runs (public/hot), else "". */
+    /** The Vite dev server origin while it runs, otherwise "". */
     private function viteDevServer(): string
     {
         $hot = public_path('hot');

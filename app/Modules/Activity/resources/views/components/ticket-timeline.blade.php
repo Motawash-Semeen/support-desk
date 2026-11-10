@@ -1,7 +1,4 @@
-{{--
-    Ticket history. $activities is already filtered for the viewer
-    (Ticket::activitiesVisibleTo) and simple-paginated by 20.
---}}
+{{-- Ticket history, already filtered for the viewer and paginated. --}}
 @props(['ticket', 'activities', 'direction' => 'desc'])
 @use('App\Support\BusinessTime')
 

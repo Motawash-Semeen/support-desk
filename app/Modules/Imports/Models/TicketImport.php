@@ -4,7 +4,6 @@ namespace App\Modules\Imports\Models;
 
 use App\Models\User;
 use App\Modules\Imports\Enums\ImportStatus;
-use Database\Factories\TicketImportFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -12,10 +11,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class TicketImport extends Model
 {
-    /** @use HasFactory<TicketImportFactory> */
     use HasFactory;
 
-    /** @var list<string> */
     protected $fillable = [
         'user_id',
         'original_name',
@@ -31,7 +28,6 @@ class TicketImport extends Model
         'finished_at',
     ];
 
-    /** @var array<string, mixed> */
     protected $attributes = [
         'status' => 'pending',
         'total_rows' => 0,
@@ -55,18 +51,12 @@ class TicketImport extends Model
         ];
     }
 
-    /** @return BelongsTo<User, $this> */
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
     }
 
-    /**
-     * Per-row validation failures. Named rowErrors to avoid confusion with
-     * validation error bags.
-     *
-     * @return HasMany<TicketImportError, $this>
-     */
+    /** Per-row failures (named rowErrors to avoid confusion with validation errors). */
     public function rowErrors(): HasMany
     {
         return $this->hasMany(TicketImportError::class);

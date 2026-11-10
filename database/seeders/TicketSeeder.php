@@ -3,24 +3,19 @@
 namespace Database\Seeders;
 
 use App\Models\User;
-use App\Modules\Assignment\Actions\AssignTicket;
-use App\Modules\Assignment\Actions\ClaimTicket;
-use App\Modules\Assignment\Jobs\AutoAssignTicket;
-use App\Modules\Conversation\Actions\AddReply;
+use App\Modules\Assignment\AssignmentService;
+use App\Modules\Assignment\AutoAssignTicket;
+use App\Modules\Conversation\ConversationService;
 use App\Modules\Conversation\Enums\ReplyType;
-use App\Modules\Sla\Actions\EscalateTicket;
+use App\Modules\Sla\BusinessCalendar;
 use App\Modules\Sla\Enums\EscalationKind;
-use App\Modules\Sla\Jobs\EscalateTicketJob;
-use App\Modules\Sla\Services\BusinessCalendar;
-use App\Modules\Sla\Services\SlaCalculator;
-use App\Modules\Sla\Services\SlaPolicyRepository;
-use App\Modules\Tickets\Actions\ChangeTicketStatus;
-use App\Modules\Tickets\Actions\CreateTicket;
-use App\Modules\Tickets\Actions\UpdateTicket;
+use App\Modules\Sla\EscalateTicketJob;
+use App\Modules\Sla\SlaService;
 use App\Modules\Tickets\Enums\TicketPriority;
 use App\Modules\Tickets\Enums\TicketStatus;
 use App\Modules\Tickets\Models\Category;
 use App\Modules\Tickets\Models\Ticket;
+use App\Modules\Tickets\TicketService;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Carbon;
@@ -29,15 +24,9 @@ use Illuminate\Support\Facades\Queue;
 use RuntimeException;
 
 /**
- * Realistic sample tickets (database/seeders/data/tickets.php), created by
- * replaying the app's own Actions in time order: the customer opens the
- * ticket, an agent picks it up and replies, the customer answers, the agent
- * resolves it, the scheduler closes it three days later, and SLA warnings,
- * breaches and escalations happen when their deadline passes. So ticket
- * numbers, SLA deadlines (business hours), the activity history and the
- * in-app notifications are exactly what the real app would have produced.
- *
- * Requires the reference seeders and UserSeeder. Skips if tickets exist.
+ * Sample tickets (data/tickets.php) created by replaying the real services in
+ * time order: opened, picked up, answered, resolved, closed, with SLA warnings and
+ * breaches when due. Needs the reference seeders and UserSeeder; skips if tickets exist.
  */
 class TicketSeeder extends Seeder
 {
@@ -46,16 +35,11 @@ class TicketSeeder extends Seeder
 
     private CarbonImmutable $clock;
 
-    /** @var array<int, int> sample index => ticket id */
     private array $ids = [];
 
-    /** @var array<string, User> */
     private array $users = [];
 
-    public function __construct(
-        private readonly SlaPolicyRepository $rules,
-        private readonly SlaCalculator $sla,
-    ) {}
+    public function __construct(private readonly SlaService $sla) {}
 
     public function run(): void
     {
@@ -70,7 +54,7 @@ class TicketSeeder extends Seeder
         $samples = require __DIR__.'/data/tickets.php';
 
         $this->users = User::query()->get()->keyBy('email')->all();
-        $calendar = $this->rules->calendar();
+        $calendar = $this->sla->calendar();
 
         $events = [];
         foreach ($samples as $i => $sample) {
@@ -78,8 +62,7 @@ class TicketSeeder extends Seeder
         }
         usort($events, fn (array $a, array $b) => [$a['at'], $a['seq']] <=> [$b['at'], $b['seq']]);
 
-        // Listeners and notifications run inline (bell entries get the right time);
-        // mail goes nowhere; the scheduler's jobs are replaced by escalateUntil().
+        // Notifications run inline; mail goes nowhere; escalateUntil() stands in for the scheduler.
         $config = [config('queue.default'), config('mail.default')];
         $queue = Queue::getFacadeRoot();
         config(['queue.default' => 'sync', 'mail.default' => 'array']);
@@ -110,12 +93,7 @@ class TicketSeeder extends Seeder
 
     /* ------------------------------------------------------------ planning */
 
-    /**
-     * Finds a moment for the customer's first message so the whole timeline
-     * lies in the past and the ticket ends in its flow's state.
-     *
-     * @return list<array<string, mixed>>
-     */
+    /** Finds a start time so the whole timeline is in the past and ends in the flow's state. */
     private function plan(int $i, array $sample, CarbonImmutable $now, BusinessCalendar $calendar): array
     {
         if (! in_array($sample['flow'], self::FLOWS, true)) {
@@ -143,7 +121,6 @@ class TicketSeeder extends Seeder
         throw new RuntimeException("Could not place sample ticket {$i} ({$sample['subject']}).");
     }
 
-    /** @return list<array<string, mixed>> */
     private function timeline(int $i, array $sample, CarbonImmutable $created, BusinessCalendar $calendar): array
     {
         $flow = $sample['flow'];
@@ -234,16 +211,16 @@ class TicketSeeder extends Seeder
         $recentlyResolved = fn () => $at('resolve')->greaterThan($now->subDays((int) config('support.auto_close_resolved_after_days'))->addHours(2));
 
         return match ($flow) {
-            'new' => $sla->dueAt->greaterThan($now),
-            'stale' => $sla->dueAt->lessThan($now->subDay()),
-            'assigned', 'working', 'waiting' => $sla->warningAt->greaterThan($now),
-            'approaching' => $sla->warningAt->lessThanOrEqualTo($now) && $sla->dueAt->greaterThan($now->addMinutes(10)),
-            'breached' => $sla->dueAt->lessThan($now->subHours(3)) && $sla->dueAt->greaterThan($now->subDays(3)),
+            'new' => $sla['due_at']->greaterThan($now),
+            'stale' => $sla['due_at']->lessThan($now->subDay()),
+            'assigned', 'working', 'waiting' => $sla['sla_warning_at']->greaterThan($now),
+            'approaching' => $sla['sla_warning_at']->lessThanOrEqualTo($now) && $sla['due_at']->greaterThan($now->addMinutes(10)),
+            'breached' => $sla['due_at']->lessThan($now->subHours(3)) && $sla['due_at']->greaterThan($now->subDays(3)),
             'resolved' => $recentlyResolved(),
-            'late' => $recentlyResolved() && $at('resolve')->greaterThan($sla->dueAt),
+            'late' => $recentlyResolved() && $at('resolve')->greaterThan($sla['due_at']),
             'closed' => true,
             'reopened' => $at('reopen')->greaterThan($now->subDays(4))
-                && $this->sla->calculate($priority, $at('reopen'))->warningAt->greaterThan($now),
+                && $this->sla->calculate($priority, $at('reopen'))['sla_warning_at']->greaterThan($now),
             default => throw new RuntimeException("Unknown flow [{$flow}]."),
         };
     }
@@ -259,33 +236,29 @@ class TicketSeeder extends Seeder
         $first = $event['type'] === 'claim' ? $this->agentFor($event['ticket'], $sample) : null;
 
         match ($event['type']) {
-            'create' => $this->ids[$event['ticket']] = app(CreateTicket::class)($customer, [
+            'create' => $this->ids[$event['ticket']] = app(TicketService::class)->create($customer, [
                 'subject' => $sample['subject'],
                 'description' => $sample['description'],
                 'priority' => $sample['priority'],
                 'category_id' => Category::query()->where('slug', $sample['category'])->value('id'),
             ])->getKey(),
             // An agent accepting from the queue, or the auto-assigner (actor = system).
-            'claim' => app(ClaimTicket::class)($ticket(), $first, $event['payload']['self'] ? $first : null),
-            'raise' => app(UpdateTicket::class)($admin, $ticket(), ['priority' => $sample['raise']]),
-            'reply' => app(AddReply::class)($event['payload']['from'] === 'agent' ? $agent() : $customer, $ticket(), $event['payload']['text'], ReplyType::Public),
-            'note' => app(AddReply::class)($agent(), $ticket(), $sample['note'], ReplyType::InternalNote),
-            'waiting' => app(ChangeTicketStatus::class)($agent(), $ticket(), TicketStatus::WaitingForCustomer),
-            'resolve' => app(ChangeTicketStatus::class)($agent(), $ticket(), TicketStatus::Resolved),
-            'close' => app(ChangeTicketStatus::class)(null, $ticket(), TicketStatus::Closed),
-            'reopen' => app(ChangeTicketStatus::class)($customer, $ticket(), TicketStatus::reopenTarget()),
-            'reassign' => app(AssignTicket::class)($admin, $ticket(), $this->user(UserSeeder::AGENTS[$sample['reassign']][1]), $agent()->getKey()),
+            'claim' => app(AssignmentService::class)->claim($ticket(), $first, $event['payload']['self'] ? $first : null),
+            'raise' => app(TicketService::class)->update($admin, $ticket(), ['priority' => $sample['raise']]),
+            'reply' => app(ConversationService::class)->addReply($event['payload']['from'] === 'agent' ? $agent() : $customer, $ticket(), $event['payload']['text'], ReplyType::Public),
+            'note' => app(ConversationService::class)->addReply($agent(), $ticket(), $sample['note'], ReplyType::InternalNote),
+            'waiting' => app(TicketService::class)->changeStatus($agent(), $ticket(), TicketStatus::WaitingForCustomer),
+            'resolve' => app(TicketService::class)->changeStatus($agent(), $ticket(), TicketStatus::Resolved),
+            'close' => app(TicketService::class)->changeStatus(null, $ticket(), TicketStatus::Closed),
+            'reopen' => app(TicketService::class)->changeStatus($customer, $ticket(), TicketStatus::reopenTarget()),
+            'reassign' => app(AssignmentService::class)->assign($admin, $ticket(), $this->user(UserSeeder::AGENTS[$sample['reassign']][1]), $agent()->getKey()),
             default => throw new RuntimeException("Unknown step [{$event['type']}]."),
         };
 
         $this->clock = $event['at'];
     }
 
-    /**
-     * What sla:scan would have done between the previous step and $until:
-     * warnings, breaches (escalation level 1) and level 2, each at the moment
-     * it became due, in time order across all tickets.
-     */
+    /** What sla:scan would have done up to $until, in time order across all tickets. */
     private function escalateUntil(CarbonImmutable $until): void
     {
         $levelTwo = (int) config('support.escalation.level2_after_minutes');
@@ -330,7 +303,7 @@ class TicketSeeder extends Seeder
             [$at, $id, $kind, $key] = $next;
             $tried[$key] = true;
             $this->travelTo($at);
-            app(EscalateTicket::class)($id, $kind);
+            $this->sla->escalate($id, $kind);
             $this->clock = $at;
         }
     }

@@ -1,5 +1,7 @@
 <?php
 
+use App\Modules\Notifications\TicketNotification;
+use App\Modules\Tickets\Models\Ticket;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -9,7 +11,7 @@ use Tests\TestCase;
 |--------------------------------------------------------------------------
 |
 | Feature tests boot the framework and refresh the database (MySQL or SQLite,
-| see tests/bootstrap.php). Unit tests stay framework-free unless they opt in.
+| tests/bootstrap.php). Unit tests stay framework-free unless they opt in.
 |
 */
 
@@ -55,18 +57,54 @@ expect()->extend('toBeJsonObject', function (array $expected) {
 | Module helpers
 |--------------------------------------------------------------------------
 |
-| moduleNamespaces('Http\Controllers') lists that layer's namespace in every
-| L5Modular module that has it, for architecture tests.
+| moduleClasses('Controller') lists every class in a module root whose name
+| ends with that word (App\Modules\Tickets\TicketController, ...), and
+| moduleNamespaces('Requests') every module's namespace for that sub-folder,
+| for architecture tests.
 |
 */
 
-/** @return list<string> */
-function moduleNamespaces(string $layer): array
+function moduleClasses(string $suffix): array
 {
-    $dirs = glob(dirname(__DIR__).'/app/Modules/*/'.str_replace('\\', '/', $layer), GLOB_ONLYDIR) ?: [];
+    $files = glob(dirname(__DIR__).'/app/Modules/*/*'.$suffix.'.php') ?: [];
 
     return array_values(array_map(
-        fn (string $dir): string => 'App\\Modules\\'.basename(dirname($dir, substr_count($layer, '\\') + 1)).'\\'.$layer,
+        fn (string $file): string => 'App\\Modules\\'.basename(dirname($file)).'\\'.basename($file, '.php'),
+        $files,
+    ));
+}
+
+function moduleNamespaces(string $folder): array
+{
+    $dirs = glob(dirname(__DIR__).'/app/Modules/*/'.$folder, GLOB_ONLYDIR) ?: [];
+
+    return array_values(array_map(
+        fn (string $dir): string => 'App\\Modules\\'.basename(dirname($dir)).'\\'.$folder,
         $dirs,
     ));
+}
+
+/*
+|--------------------------------------------------------------------------
+| Notification helpers
+|--------------------------------------------------------------------------
+|
+| Every ticket notification is a TicketNotification; its `kind` says what
+| happened (listed in TicketNotifier). ofKind() is the callback for Notification
+| assertions:
+|
+|   Notification::assertSentTo($customer, TicketNotification::class, ofKind('ticket_resolved'));
+|
+*/
+
+function ofKind(string ...$kinds): Closure
+{
+    return fn (TicketNotification $notification): bool => in_array($notification->kind, $kinds, true);
+}
+
+/** A ready-made notification, for tests about delivery and the in-app list. */
+function resolvedNotification(Ticket $ticket): TicketNotification
+{
+    return new TicketNotification($ticket, 'ticket_resolved', 'Your ticket was resolved',
+        "Your ticket {$ticket->ticket_number} was marked resolved. Reply or reopen it if the problem is not fixed.");
 }

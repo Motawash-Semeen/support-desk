@@ -4,10 +4,10 @@ use App\Models\User;
 use App\Modules\Sla\Models\BusinessHour;
 use App\Modules\Sla\Models\Holiday;
 use App\Modules\Sla\Models\SlaPolicy;
-use App\Modules\Tickets\Actions\CreateTicket;
 use App\Modules\Tickets\Enums\TicketPriority;
 use App\Modules\Tickets\Models\Category;
 use App\Modules\Tickets\Models\Ticket;
+use App\Modules\Tickets\TicketService;
 use Carbon\CarbonImmutable;
 use Database\Seeders\BusinessHourSeeder;
 use Database\Seeders\SlaPolicySeeder;
@@ -62,7 +62,7 @@ it('saves SLA targets, flushes the cache and applies them to new tickets only', 
     $this->travelTo(CarbonImmutable::parse('2026-11-08 03:00:00', 'UTC')); // Sunday 09:00 Dhaka
     $customer = User::factory()->create();
     $category = Category::factory()->create();
-    $create = fn () => app(CreateTicket::class)($customer, ['subject' => 's', 'description' => 'd', 'priority' => 'critical', 'category_id' => $category->id]);
+    $create = fn () => app(TicketService::class)->create($customer, ['subject' => 's', 'description' => 'd', 'priority' => 'critical', 'category_id' => $category->id]);
 
     $before = $create();
     expect($before->sla_minutes)->toBe(120);
@@ -112,7 +112,7 @@ it('saves business hours and uses them for new deadlines', function () {
     expect($friday->is_working_day)->toBeTrue()->and($friday->opens_at)->toStartWith('10:00');
 
     $this->travelTo(CarbonImmutable::parse('2026-11-05 11:00:00', 'UTC')); // Thursday 17:00 Dhaka
-    $ticket = app(CreateTicket::class)(User::factory()->create(), [
+    $ticket = app(TicketService::class)->create(User::factory()->create(), [
         'subject' => 's', 'description' => 'd', 'priority' => 'critical', 'category_id' => Category::factory()->create()->id,
     ]);
 
@@ -152,7 +152,7 @@ it('counts a new holiday in the next calculation', function () {
     $this->actingAs($this->admin)->post(route('admin.sla-settings.holidays.store'), ['date' => '2026-11-08', 'name' => 'Office closed']);
 
     $this->travelTo(CarbonImmutable::parse('2026-11-05 11:00:00', 'UTC')); // Thursday 17:00 Dhaka
-    $ticket = app(CreateTicket::class)(User::factory()->create(), [
+    $ticket = app(TicketService::class)->create(User::factory()->create(), [
         'subject' => 's', 'description' => 'd', 'priority' => 'critical', 'category_id' => Category::factory()->create()->id,
     ]);
 

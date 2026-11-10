@@ -14,28 +14,16 @@ use DateTimeInterface;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
- * Demo/test tickets with internally consistent timestamps.
- *
- * SLA dates use a wall-clock approximation (created_at + sla_minutes). Real
- * tickets get due_at from the business-hours SLA calculator.
- *
- * Closures are evaluated after states are merged, so derived columns
- * (sla_minutes, due_at, assigned_at, ...) follow whatever a state overrides.
- *
- * @extends Factory<Ticket>
+ * Test tickets with consistent timestamps. SLA dates are approximate
+ * (created_at + sla_minutes); states can override any column.
  */
 class TicketFactory extends Factory
 {
     protected $model = Ticket::class;
 
-    /**
-     * Factory numbers come from a separate range (900001+) so they can never
-     * collide with numbers issued by TicketNumberGenerator, which starts at 1.
-     * The demo seeder replaces them with real generator numbers.
-     */
+    /** Numbers from 900001 up, so they never collide with real ones. */
     public const NUMBER_RANGE_START = 900_000;
 
-    /** @var array<int, int> per-year counter so factory numbers stay unique in a process */
     protected static array $sequence = [];
 
     public function definition(): array
@@ -68,15 +56,12 @@ class TicketFactory extends Factory
             'breached_notified_at' => null,
             'external_reference' => null,
             'source' => TicketSource::Web,
-            // Last on purpose: closures resolve in key order, so this can read
-            // resolved_at / closed_at set by workflow states.
+            // Last: it reads resolved_at / closed_at set by the states.
             'updated_at' => fn (array $a) => $a['closed_at'] ?? $a['resolved_at'] ?? $a['first_response_at'] ?? $a['created_at'],
         ];
     }
 
-    /* ------------------------------------------------------------------ */
-    /* Workflow states */
-    /* ------------------------------------------------------------------ */
+    // --- Workflow states ---
 
     /** Assign to the given agent, keep an agent set by an earlier state, or create one. */
     public function assigned(?User $agent = null): static
@@ -203,9 +188,7 @@ class TicketFactory extends Factory
         ]);
     }
 
-    /* ------------------------------------------------------------------ */
-    /* Helpers */
-    /* ------------------------------------------------------------------ */
+    // --- Helpers ---
 
     /** First agent response shortly after assignment. */
     protected function responded(): static

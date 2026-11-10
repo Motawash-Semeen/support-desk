@@ -2,31 +2,30 @@
 
 namespace App\Modules\Sla\Models;
 
-use App\Modules\Sla\Observers\SlaRulesObserver;
-use Database\Factories\BusinessHourFactory;
-use Illuminate\Database\Eloquent\Attributes\ObservedBy;
+use App\Modules\Sla\SlaService;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
-/**
- * Weekly working schedule. Times are wall-clock times in
- * config('support.timezone'); weekday uses Carbon numbering (0 = Sunday).
- */
-#[ObservedBy(SlaRulesObserver::class)]
+/** Weekly schedule: one row per weekday (0 = Sunday), times in the business timezone. */
 class BusinessHour extends Model
 {
-    /** @use HasFactory<BusinessHourFactory> */
     use HasFactory;
 
     public $timestamps = false;
 
-    /** @var list<string> */
     protected $fillable = [
         'weekday',
         'is_working_day',
         'opens_at',
         'closes_at',
     ];
+
+    /** A change clears the SLA rule cache after the commit. */
+    protected static function booted(): void
+    {
+        static::saved(fn () => SlaService::forgetRulesAfterCommit());
+        static::deleted(fn () => SlaService::forgetRulesAfterCommit());
+    }
 
     protected function casts(): array
     {

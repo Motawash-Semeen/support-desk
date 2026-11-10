@@ -14,17 +14,13 @@ return Application::configure(basePath: dirname(__DIR__))
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
     )
-    // Modules (L5Modular) keep their own listeners and commands. Module routes,
-    // views and migrations are registered by L5Modular's service provider.
-    ->withEvents(discover: [__DIR__.'/../app/Modules/*/Listeners'])
-    ->withCommands(glob(__DIR__.'/../app/Modules/*/Console/Commands', GLOB_ONLYDIR) ?: [])
+    // Module routes, views and migrations are registered by L5Modular.
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->alias([
             'role' => EnsureRole::class,
         ]);
 
-        // CSRF, cookie encryption and session handling come from the default
-        // web group (no CSRF exceptions are configured).
+        // CSRF and sessions come from the default web group.
         $middleware->web(append: [SecurityHeaders::class]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
@@ -34,8 +30,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'url' => app()->runningInConsole() ? null : request()?->fullUrl(),
         ]));
 
-        // A database failure while saving is still reported (logged with full
-        // context) but the user gets a friendly message instead of a 500 page.
+        // A database error while saving is logged, but the user sees a friendly message.
         $exceptions->render(function (QueryException $e, Request $request) {
             if ($request->isMethodSafe() || $request->expectsJson()) {
                 return null;

@@ -6,9 +6,6 @@ use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
 {
-    /**
-     * Run the migrations.
-     */
     public function up(): void
     {
         Schema::create('users', function (Blueprint $table) {
@@ -24,8 +21,7 @@ return new class extends Migration
             $table->rememberToken();
             $table->timestamps();
 
-            // Leftmost prefix serves role lookups (WHERE role = ?); the full index serves
-            // auto-assignment: WHERE role = 'agent' AND is_available = 1 ORDER BY last_assigned_at.
+            // Role lookups and auto-assignment (available agents by last assignment).
             $table->index(['role', 'is_available', 'last_assigned_at'], 'users_role_available_last_assigned_index');
             // Agent dropdowns and the customer autocomplete: WHERE role = ? ORDER BY name.
             $table->index(['role', 'name']);
@@ -47,9 +43,6 @@ return new class extends Migration
         });
     }
 
-    /**
-     * Reverse the migrations.
-     */
     public function down(): void
     {
         Schema::dropIfExists('users');

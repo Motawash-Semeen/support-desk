@@ -2,17 +2,13 @@
 
 use App\Models\User;
 use App\Modules\Activity\Enums\ActivityType;
-use App\Modules\Assignment\Actions\AssignTicket;
-use App\Modules\Assignment\Actions\ClaimTicket;
-use App\Modules\Assignment\Actions\ReleaseTicket;
-use App\Modules\Assignment\Events\TicketAssigned;
-use App\Modules\Assignment\Events\TicketReleased;
-use App\Modules\Assignment\Exceptions\AssignmentConflict;
+use App\Modules\Assignment\AssignmentService;
+use App\Modules\Notifications\TicketNotification;
 use App\Modules\Tickets\Enums\TicketStatus;
-use App\Modules\Tickets\Events\TicketStatusChanged;
 use App\Modules\Tickets\Models\Ticket;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Event;
+use Illuminate\Support\Facades\Notification;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 
 beforeEach(function () {
     $this->agentA = User::factory()->agent()->create(['name' => 'Agent A']);
@@ -21,14 +17,14 @@ beforeEach(function () {
     $this->ticket = Ticket::factory()->create(); // open, unassigned
 });
 
-/* ClaimTicket: the compare-and-set primitive --------------------------- */
+/* claim(): the compare-and-set primitive --------------------------- */
 
 it('lets exactly one of two agents claim the same ticket (deterministic race)', function () {
     // Both agents act on the same stale in-memory model, as two requests would.
     $staleForB = Ticket::query()->find($this->ticket->id);
 
-    expect(app(ClaimTicket::class)($this->ticket, $this->agentA, $this->agentA))->toBeTrue()
-        ->and(app(ClaimTicket::class)($staleForB, $this->agentB, $this->agentB))->toBeFalse();
+    expect(app(AssignmentService::class)->claim($this->ticket, $this->agentA, $this->agentA))->toBeTrue()
+        ->and(app(AssignmentService::class)->claim($staleForB, $this->agentB, $this->agentB))->toBeFalse();
 
     $ticket = $this->ticket->fresh();
 
@@ -45,7 +41,7 @@ it('claims with ONE conditional UPDATE whose WHERE is the guard', function () {
         $sql[] = $query->sql;
     });
 
-    app(ClaimTicket::class)($this->ticket, $this->agentA);
+    app(AssignmentService::class)->claim($this->ticket, $this->agentA);
 
     $updates = collect($sql)
         ->map(fn (string $s) => strtolower(str_replace(['`', '"'], '', $s)))
@@ -61,8 +57,8 @@ it('claims with ONE conditional UPDATE whose WHERE is the guard', function () {
 it('moves open to in progress but keeps waiting-for-customer as it is', function () {
     $waiting = Ticket::factory()->create(['status' => TicketStatus::WaitingForCustomer]);
 
-    app(ClaimTicket::class)($this->ticket, $this->agentA);
-    app(ClaimTicket::class)($waiting, $this->agentA);
+    app(AssignmentService::class)->claim($this->ticket, $this->agentA);
+    app(AssignmentService::class)->claim($waiting, $this->agentA);
 
     expect($this->ticket->fresh()->status)->toBe(TicketStatus::InProgress)
         ->and($waiting->fresh()->status)->toBe(TicketStatus::WaitingForCustomer)
@@ -72,36 +68,36 @@ it('moves open to in progress but keeps waiting-for-customer as it is', function
 it('does not claim resolved or closed tickets', function (string $state) {
     $ticket = Ticket::factory()->{$state}()->create(['assigned_agent_id' => null]);
 
-    expect(app(ClaimTicket::class)($ticket, $this->agentA))->toBeFalse()
+    expect(app(AssignmentService::class)->claim($ticket, $this->agentA))->toBeFalse()
         ->and($ticket->fresh()->assigned_agent_id)->toBeNull();
 })->with(['resolved', 'closed']);
 
 it('only assigns agents', function () {
-    expect(fn () => app(ClaimTicket::class)($this->ticket, $this->admin))->toThrow(InvalidArgumentException::class);
+    expect(fn () => app(AssignmentService::class)->claim($this->ticket, $this->admin))->toThrow(InvalidArgumentException::class);
 });
 
-it('dispatches TicketAssigned and the open-to-in-progress status change', function () {
-    Event::fake([TicketAssigned::class, TicketStatusChanged::class]);
+it('notifies the agent and moves an open ticket to in progress', function () {
+    Notification::fake();
 
-    app(ClaimTicket::class)($this->ticket, $this->agentA, null);
+    app(AssignmentService::class)->claim($this->ticket, $this->agentA, null);
 
-    Event::assertDispatched(TicketAssigned::class, fn ($e) => $e->agent->is($this->agentA) && $e->actor === null);
-    Event::assertDispatched(TicketStatusChanged::class, fn ($e) => $e->from === TicketStatus::Open && $e->to === TicketStatus::InProgress);
+    Notification::assertSentTo($this->agentA, TicketNotification::class, ofKind('assigned_to_you'));
+    expect($this->ticket->fresh()->status)->toBe(TicketStatus::InProgress);
 });
 
-/* AssignTicket: admin assignment guarded by the assignee the admin saw ------ */
+/* assign(): admin assignment guarded by the assignee the admin saw ------ */
 
 it('lets an admin assign an unassigned ticket', function () {
-    app(AssignTicket::class)($this->admin, $this->ticket, $this->agentA, null);
+    app(AssignmentService::class)->assign($this->admin, $this->ticket, $this->agentA, null);
 
     expect($this->ticket->fresh()->assigned_agent_id)->toBe($this->agentA->id)
         ->and($this->ticket->activities()->sole()->type)->toBe(ActivityType::Assigned);
 });
 
 it('reassigns and records old and new agent', function () {
-    app(ClaimTicket::class)($this->ticket, $this->agentA);
+    app(AssignmentService::class)->claim($this->ticket, $this->agentA);
 
-    app(AssignTicket::class)($this->admin, $this->ticket, $this->agentB, $this->agentA->id);
+    app(AssignmentService::class)->assign($this->admin, $this->ticket, $this->agentB, $this->agentA->id);
 
     $activity = $this->ticket->activities()->where('type', ActivityType::Reassigned)->sole();
 
@@ -113,35 +109,34 @@ it('reassigns and records old and new agent', function () {
 
 it('reports a conflict instead of clobbering a concurrent reassignment by another admin', function () {
     $agentC = User::factory()->agent()->create();
-    app(ClaimTicket::class)($this->ticket, $this->agentA);
+    app(AssignmentService::class)->claim($this->ticket, $this->agentA);
     $secondAdmin = User::factory()->admin()->create();
 
     // Both admins saw agent A. The first one wins ...
-    app(AssignTicket::class)($this->admin, $this->ticket, $this->agentB, $this->agentA->id);
+    app(AssignmentService::class)->assign($this->admin, $this->ticket, $this->agentB, $this->agentA->id);
 
     // ... the second one's guarded UPDATE matches zero rows.
-    expect(fn () => app(AssignTicket::class)($secondAdmin, $this->ticket, $agentC, $this->agentA->id))
-        ->toThrow(AssignmentConflict::class);
+    expect(fn () => app(AssignmentService::class)->assign($secondAdmin, $this->ticket, $agentC, $this->agentA->id))
+        ->toThrow(HttpException::class);
 
     expect($this->ticket->fresh()->assigned_agent_id)->toBe($this->agentB->id);
 });
 
 it('reports a conflict when an admin assigns a ticket an agent accepted meanwhile', function () {
-    app(ClaimTicket::class)($this->ticket, $this->agentA, $this->agentA);
+    app(AssignmentService::class)->claim($this->ticket, $this->agentA, $this->agentA);
 
-    expect(fn () => app(AssignTicket::class)($this->admin, $this->ticket, $this->agentB, null))
-        ->toThrow(AssignmentConflict::class);
+    expect(fn () => app(AssignmentService::class)->assign($this->admin, $this->ticket, $this->agentB, null))
+        ->toThrow(HttpException::class);
 
     expect($this->ticket->fresh()->assigned_agent_id)->toBe($this->agentA->id);
 });
 
-/* ReleaseTicket ------------------------------------------------------- */
+/* release() ------------------------------------------------------------- */
 
 it('releases a ticket back to the open queue', function () {
-    Event::fake([TicketReleased::class]);
-    app(ClaimTicket::class)($this->ticket, $this->agentA);
+    app(AssignmentService::class)->claim($this->ticket, $this->agentA);
 
-    app(ReleaseTicket::class)($this->agentA, $this->ticket->fresh());
+    app(AssignmentService::class)->release($this->agentA, $this->ticket->fresh());
 
     $ticket = $this->ticket->fresh();
 
@@ -149,16 +144,14 @@ it('releases a ticket back to the open queue', function () {
         ->and($ticket->assigned_at)->toBeNull()
         ->and($ticket->status)->toBe(TicketStatus::Open)
         ->and($ticket->activities()->where('type', ActivityType::Released)->sole()->old_values['assigned_agent_id'])->toBe($this->agentA->id);
-
-    Event::assertDispatched(TicketReleased::class);
 });
 
 it('never undoes a newer assignment when releasing', function () {
-    app(ClaimTicket::class)($this->ticket, $this->agentA);
+    app(AssignmentService::class)->claim($this->ticket, $this->agentA);
     $seenByA = $this->ticket->fresh();
-    app(AssignTicket::class)($this->admin, $this->ticket, $this->agentB, $this->agentA->id);
+    app(AssignmentService::class)->assign($this->admin, $this->ticket, $this->agentB, $this->agentA->id);
 
-    expect(fn () => app(ReleaseTicket::class)($this->agentA, $seenByA))->toThrow(AssignmentConflict::class);
+    expect(fn () => app(AssignmentService::class)->release($this->agentA, $seenByA))->toThrow(HttpException::class);
 
     expect($this->ticket->fresh()->assigned_agent_id)->toBe($this->agentB->id);
 });

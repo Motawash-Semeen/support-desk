@@ -6,9 +6,6 @@ use App\Modules\Imports\Models\TicketImport;
 use App\Modules\Imports\Models\TicketImportError;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
-/**
- * @extends Factory<TicketImportError>
- */
 class TicketImportErrorFactory extends Factory
 {
     protected $model = TicketImportError::class;

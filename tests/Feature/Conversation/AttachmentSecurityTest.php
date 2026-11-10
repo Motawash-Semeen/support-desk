@@ -1,7 +1,7 @@
 <?php
 
 use App\Models\User;
-use App\Modules\Conversation\Actions\AddReply;
+use App\Modules\Conversation\ConversationService;
 use App\Modules\Conversation\Enums\ReplyType;
 use App\Modules\Conversation\Models\Attachment;
 use App\Modules\Tickets\Models\Ticket;
@@ -16,7 +16,7 @@ beforeEach(function () {
     $this->agent = User::factory()->agent()->create();
     $this->ticket = Ticket::factory()->for($this->owner, 'creator')->inProgress()->assigned($this->agent)->create();
     $this->upload = function (User $actor, ReplyType $type, UploadedFile $file, ?Ticket $ticket = null): Attachment {
-        $reply = app(AddReply::class)($actor, $ticket ?? $this->ticket, 'see attached', $type, [$file]);
+        $reply = app(ConversationService::class)->addReply($actor, $ticket ?? $this->ticket, 'see attached', $type, [$file]);
 
         return $reply->attachments()->sole();
     };

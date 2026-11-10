@@ -10,13 +10,11 @@ use App\Modules\Conversation\Models\Attachment;
 use App\Modules\Conversation\Models\TicketReply;
 use App\Modules\Sla\Enums\SlaStatus;
 use App\Modules\Sla\Models\SlaPolicy;
-use App\Modules\Sla\Services\SlaStatusResolver;
 use App\Modules\Tickets\Enums\TicketPriority;
 use App\Modules\Tickets\Enums\TicketSource;
 use App\Modules\Tickets\Enums\TicketStatus;
-use App\Modules\Tickets\Support\FullTextQuery;
+use App\Modules\Tickets\TicketFilter;
 use Carbon\CarbonInterface;
-use Database\Factories\TicketFactory;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -25,15 +23,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Ticket extends Model
 {
-    /** @use HasFactory<TicketFactory> */
     use HasFactory;
 
-    /**
-     * Columns list pages need. Selecting only these keeps list queries narrow
-     * (description is TEXT and never shown in lists).
-     *
-     * @var list<string>
-     */
+    /** Columns list pages need (never the long description). */
     public const LIST_COLUMNS = [
         'id',
         'ticket_number',
@@ -52,13 +44,7 @@ class Ticket extends Model
         'updated_at',
     ];
 
-    /**
-     * Fillable is the set of columns Actions write. FormRequests whitelist what a
-     * user may submit and Actions map validated input explicitly, so request
-     * data never reaches create()/update() unfiltered.
-     *
-     * @var list<string>
-     */
+    /** Columns the services write; request data is always validated and mapped first. */
     protected $fillable = [
         'ticket_number',
         'subject',
@@ -84,7 +70,6 @@ class Ticket extends Model
         'source',
     ];
 
-    /** @var array<string, mixed> */
     protected $attributes = [
         'status' => 'open',
         'source' => 'web',
@@ -112,83 +97,53 @@ class Ticket extends Model
         ];
     }
 
-    /**
-     * URLs use the human ticket number (served by its unique index), e.g.
-     * /tickets/TKT-2026-000042.
-     */
+    /** URLs use the ticket number, e.g. /tickets/TKT-2026-000042. */
     public function getRouteKeyName(): string
     {
         return 'ticket_number';
     }
 
-    /* ------------------------------------------------------------------ */
-    /* Relationships */
-    /* ------------------------------------------------------------------ */
+    // --- Relationships ---
 
-    /** @return BelongsTo<User, $this> */
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
     }
 
-    /** @return BelongsTo<User, $this> */
     public function assignee(): BelongsTo
     {
         return $this->belongsTo(User::class, 'assigned_agent_id');
     }
 
-    /** @return BelongsTo<Category, $this> */
     public function category(): BelongsTo
     {
         return $this->belongsTo(Category::class);
     }
 
-    /** @return BelongsTo<SlaPolicy, $this> */
     public function slaPolicy(): BelongsTo
     {
         return $this->belongsTo(SlaPolicy::class);
     }
 
-    /**
-     * Every reply including internal notes. Staff only.
-     *
-     * @return HasMany<TicketReply, $this>
-     */
+    /** Every reply including internal notes. Staff only. */
     public function replies(): HasMany
     {
         return $this->hasMany(TicketReply::class);
     }
 
-    /**
-     * Customer-visible replies. The single place the public/internal filter
-     * lives; served by ticket_replies_ticket_id_type_index.
-     *
-     * @return HasMany<TicketReply, $this>
-     */
+    /** Replies customers may see. */
     public function publicReplies(): HasMany
     {
         return $this->hasMany(TicketReply::class)->where('type', ReplyType::Public);
     }
 
-    /**
-     * The conversation a given user may see: everything for staff, public
-     * replies only for customers. Decided by TicketPolicy::viewInternalNotes,
-     * the single gate for internal-note visibility.
-     *
-     * @return HasMany<TicketReply, $this>
-     */
+    /** Replies the user may see: all for staff, public ones for customers. */
     public function repliesVisibleTo(User $user): HasMany
     {
         return $user->can('viewInternalNotes', $this) ? $this->replies() : $this->publicReplies();
     }
 
-    /**
-     * Timeline entries a given user may see. Customers get only types that
-     * ActivityType::isCustomerVisible() allows (no notes, assignment, SLA
-     * internals or escalation). Served by ticket_activities_ticket_id_created_at_index.
-     *
-     * @return HasMany<TicketActivity, $this>
-     */
+    /** Timeline entries the user may see; customers get only customer-visible types. */
     public function activitiesVisibleTo(User $user): HasMany
     {
         return $user->can('viewInternalNotes', $this)
@@ -196,21 +151,17 @@ class Ticket extends Model
             : $this->activities()->whereIn('type', ActivityType::customerVisibleValues());
     }
 
-    /** @return HasMany<Attachment, $this> */
     public function attachments(): HasMany
     {
         return $this->hasMany(Attachment::class);
     }
 
-    /** @return HasMany<TicketActivity, $this> */
     public function activities(): HasMany
     {
         return $this->hasMany(TicketActivity::class);
     }
 
-    /* ------------------------------------------------------------------ */
-    /* Scopes */
-    /* ------------------------------------------------------------------ */
+    // --- Scopes ---
 
     /** Open, in progress or waiting for customer. */
     public function scopeActive(Builder $query): void
@@ -228,19 +179,14 @@ class Ticket extends Model
         $query->whereNull('assigned_agent_id');
     }
 
-    /** Served by tickets_assigned_agent_id_status_index. */
     public function scopeAssignedTo(Builder $query, User|int $user): void
     {
         $query->where('assigned_agent_id', $user instanceof User ? $user->getKey() : $user);
     }
 
     /**
-     * Row-level visibility (the same rule as TicketPolicy::view):
-     *  - admins: every ticket;
-     *  - agents: tickets assigned to them (any status), plus active unassigned
-     *    tickets, which they may open from the queue before accepting;
-     *  - customers: tickets they created.
-     * Served by tickets_agent_cover_index / tickets_created_by_created_at_status_index.
+     * Tickets the user may see (same rule as TicketPolicy::canSee): admins all;
+     * agents their own plus active unassigned ones; customers their own.
      */
     public function scopeVisibleTo(Builder $query, User $user): void
     {
@@ -261,28 +207,28 @@ class Ticket extends Model
         $query->where('created_by', $user->getKey());
     }
 
-    /** Any SLA status, with the same rules as slaStatus() (SlaStatusResolver). */
+    /** Any SLA status, same rules as slaStatus(). */
     public function scopeSlaStatus(Builder $query, SlaStatus $status): void
     {
-        SlaStatusResolver::applyScope($query, $status, now());
+        $status->applyTo($query, now());
     }
 
-    /** Active and past due. Served by tickets_status_due_at_index. */
+    /** Active and past due. */
     public function scopeSlaBreached(Builder $query): void
     {
-        SlaStatusResolver::applyScope($query, SlaStatus::Breached, now());
+        SlaStatus::Breached->applyTo($query, now());
     }
 
-    /** Active, past the warning point, not yet due. Served by tickets_status_sla_warning_at_index. */
+    /** Active, past the warning time, not yet due. */
     public function scopeSlaApproaching(Builder $query): void
     {
-        SlaStatusResolver::applyScope($query, SlaStatus::Approaching, now());
+        SlaStatus::Approaching->applyTo($query, now());
     }
 
     /** Active and before the warning point. */
     public function scopeWithinSla(Builder $query): void
     {
-        SlaStatusResolver::applyScope($query, SlaStatus::WithinSla, now());
+        SlaStatus::WithinSla->applyTo($query, now());
     }
 
     /** Relations every list row renders, with only the columns it shows. */
@@ -302,12 +248,8 @@ class Ticket extends Model
     }
 
     /**
-     * Keyword search on subject + description.
-     *  - MySQL/MariaDB: MATCH(subject, description) AGAINST(? IN BOOLEAN MODE) on
-     *    the FULLTEXT index, with every word required and prefix-matched; input is
-     *    sanitised (FullTextQuery) and bound, never interpolated.
-     *  - Only very short words (below the FULLTEXT minimum) or another driver
-     *    (SQLite tests): subject LIKE 'term%' OR description LIKE '%term%', escaped.
+     * Keyword search: MySQL full-text search on subject and description; LIKE on
+     * other databases or for very short words.
      */
     public function scopeSearch(Builder $query, ?string $term): void
     {
@@ -317,7 +259,7 @@ class Ticket extends Model
             return;
         }
 
-        $boolean = FullTextQuery::boolean($term);
+        $boolean = TicketFilter::booleanQuery($term);
 
         if ($boolean !== null && in_array($query->getModel()->getConnection()->getDriverName(), ['mysql', 'mariadb'], true)) {
             $query->whereFullText(['subject', 'description'], $boolean, ['mode' => 'boolean']);
@@ -325,30 +267,25 @@ class Ticket extends Model
             return;
         }
 
-        $words = FullTextQuery::words($term);
-        $literal = FullTextQuery::escapeLike($words === [] ? $term : implode(' ', $words));
+        $words = TicketFilter::words($term);
+        $literal = TicketFilter::escapeLike($words === [] ? $term : implode(' ', $words));
 
         $query->where(fn (Builder $q) => $q
             ->where('subject', 'like', $literal.'%')
             ->orWhere('description', 'like', '%'.$literal.'%'));
     }
 
-    /* ------------------------------------------------------------------ */
-    /* State helpers */
-    /* ------------------------------------------------------------------ */
+    // --- State helpers ---
 
     public function isActive(): bool
     {
         return $this->status->isActive();
     }
 
-    /**
-     * SLA standing from stored columns only (comparisons, no maths). Same rules
-     * as the SQL scopes; see SlaStatusResolver.
-     */
+    /** SLA status from the stored columns. */
     public function slaStatus(?CarbonInterface $now = null): ?SlaStatus
     {
-        return SlaStatusResolver::resolve(
+        return SlaStatus::resolve(
             $this->due_at,
             $this->sla_warning_at,
             $this->resolved_at ?? $this->closed_at,

@@ -17,10 +17,7 @@ enum Role: string
         };
     }
 
-    /**
-     * Admins and agents: they get the staff screens and see internal notes.
-     * Which tickets each one may open is decided by TicketPolicy.
-     */
+    /** Admins and agents: staff screens and internal notes. */
     public function isStaff(): bool
     {
         return $this !== self::Customer;

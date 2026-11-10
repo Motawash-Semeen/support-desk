@@ -2,14 +2,12 @@
 
 use App\Models\User;
 use App\Modules\Activity\Enums\ActivityType;
-use App\Modules\Activity\Services\TicketActivityRecorder;
-use App\Modules\Assignment\Actions\ClaimTicket;
-use App\Modules\Assignment\Jobs\AutoAssignTicket;
-use App\Modules\Assignment\Services\LeastWorkloadStrategy;
-use App\Modules\Tickets\Actions\CreateTicket;
+use App\Modules\Assignment\AssignmentService;
+use App\Modules\Assignment\AutoAssignTicket;
 use App\Modules\Tickets\Enums\TicketPriority;
 use App\Modules\Tickets\Models\Category;
 use App\Modules\Tickets\Models\Ticket;
+use App\Modules\Tickets\TicketService;
 use Carbon\CarbonImmutable;
 use Illuminate\Console\Scheduling\Schedule;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
@@ -19,7 +17,7 @@ use Illuminate\Support\Facades\Queue;
 /** Run the job synchronously, exactly as a worker would. */
 function autoAssign(Ticket $ticket): void
 {
-    (new AutoAssignTicket($ticket->id))->handle(app(LeastWorkloadStrategy::class), app(ClaimTicket::class), app(TicketActivityRecorder::class));
+    (new AutoAssignTicket($ticket->id))->handle(app(AssignmentService::class));
 }
 
 beforeEach(function () {
@@ -107,7 +105,7 @@ it('computes workload for all candidates in one query', function () {
 
     DB::flushQueryLog();
     DB::enableQueryLog();
-    DB::transaction(fn () => app(LeastWorkloadStrategy::class)->pick($ticket));
+    DB::transaction(fn () => app(AssignmentService::class)->pickAgent($ticket));
     $queries = collect(DB::getQueryLog())->pluck('query');
     DB::disableQueryLog();
 
@@ -122,7 +120,7 @@ it('locks candidate agents in id order before reading workload (MySQL)', functio
 
     DB::flushQueryLog();
     DB::enableQueryLog();
-    DB::transaction(fn () => app(LeastWorkloadStrategy::class)->pick($ticket));
+    DB::transaction(fn () => app(AssignmentService::class)->pickAgent($ticket));
     $lock = collect(DB::getQueryLog())->pluck('query')->first(fn ($q) => str_contains(strtolower($q), 'for update'));
     DB::disableQueryLog();
 
@@ -145,7 +143,7 @@ it('does nothing for a ticket that was assigned in the meantime', function () {
     $agent = User::factory()->agent()->create();
     $other = User::factory()->agent()->create();
     $ticket = Ticket::factory()->for($this->category)->create();
-    app(ClaimTicket::class)($ticket, $other, $other);
+    app(AssignmentService::class)->claim($ticket, $other, $other);
 
     autoAssign($ticket);
 
@@ -165,7 +163,7 @@ it('is a unique, retrying queued job', function () {
 it('auto-assigns end to end when a ticket is created', function () {
     $agent = User::factory()->agent()->create();
 
-    $ticket = app(CreateTicket::class)(User::factory()->create(), [
+    $ticket = app(TicketService::class)->create(User::factory()->create(), [
         'subject' => 'Refund', 'description' => 'Please refund', 'priority' => 'high', 'category_id' => $this->category->id,
     ]);
 

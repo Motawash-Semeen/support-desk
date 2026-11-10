@@ -4,25 +4,23 @@ use App\Enums\Role;
 use App\Models\User;
 use App\Modules\Activity\Enums\ActivityType;
 use App\Modules\Activity\Models\TicketActivity;
-use App\Modules\Imports\Actions\RunTicketImport;
 use App\Modules\Imports\Enums\ImportStatus;
-use App\Modules\Imports\Jobs\ProcessTicketImport;
+use App\Modules\Imports\ImportFinishedNotification;
+use App\Modules\Imports\ImportService;
 use App\Modules\Imports\Models\TicketImport;
-use App\Modules\Imports\Notifications\TicketImportFinishedNotification;
-use App\Modules\Sla\Jobs\EscalateTicketJob;
-use App\Modules\Sla\Services\SlaCalculator;
-use App\Modules\Sla\Services\SlaResult;
+use App\Modules\Imports\ProcessTicketImport;
+use App\Modules\Notifications\TicketNotifier;
+use App\Modules\Sla\EscalateTicketJob;
+use App\Modules\Sla\SlaService;
 use App\Modules\Tickets\Enums\TicketPriority;
 use App\Modules\Tickets\Enums\TicketSource;
 use App\Modules\Tickets\Enums\TicketStatus;
-use App\Modules\Tickets\Events\TicketCreated;
 use App\Modules\Tickets\Models\Category;
 use App\Modules\Tickets\Models\Ticket;
 use Carbon\CarbonImmutable;
 use Carbon\CarbonInterface;
 use Database\Seeders\CategorySeeder;
 use Illuminate\Auth\Notifications\ResetPassword;
-use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
@@ -117,7 +115,6 @@ function tenThousandRows(): Generator
 
 it('imports 10,000 rows in chunks with exact counts, errors and contiguous numbers', function () {
     $this->commitTestTransaction(); // chunks commit as in production; no 20k-row rollback afterwards
-    Event::fake([TicketCreated::class]);
     Queue::fake();
     User::factory()->create(['email' => 'customer0@example.com']); // existing customer
     foreach (range(1, 10) as $n) {
@@ -129,7 +126,7 @@ it('imports 10,000 rows in chunks with exact counts, errors and contiguous numbe
     memory_reset_peak_usage();
     $before = memory_get_usage();
 
-    app(RunTicketImport::class)($import);
+    app(ImportService::class)->run($import);
 
     $peakIncrease = memory_get_peak_usage() - $before;
     $import->refresh();
@@ -169,11 +166,10 @@ it('imports 10,000 rows in chunks with exact counts, errors and contiguous numbe
     expect(User::query()->where('email', 'like', 'customer%@example.com')->count())->toBe(200)
         ->and(User::query()->where('email', 'like', 'customer%@example.com')->where('role', '!=', Role::Customer->value)->count())->toBe(0);
 
-    // No per-ticket events, emails or jobs; one summary for the uploader.
-    Event::assertNotDispatched(TicketCreated::class);
+    // No per-ticket notifications, emails or jobs; one summary for the uploader.
     Queue::assertNothingPushed();
     Notification::assertNotSentTo(User::query()->where('role', Role::Customer->value)->get(), ResetPassword::class);
-    Notification::assertSentTo($this->admin, TicketImportFinishedNotification::class);
+    Notification::assertSentTo($this->admin, ImportFinishedNotification::class);
     Notification::assertCount(1);
 
     // Memory stays bounded (streaming + chunking), independent of file size.
@@ -190,7 +186,7 @@ it('maps statuses, agents, created_at and SLA for imported rows', function () {
         row(['external_reference' => 'S-4', 'category' => 'technical-support']),
     ]);
 
-    app(RunTicketImport::class)($import);
+    app(ImportService::class)->run($import);
 
     $tickets = Ticket::query()->where('source', TicketSource::Import)->with('category')->get()->keyBy('external_reference');
 
@@ -220,24 +216,22 @@ it('resumes from last_processed_row after a crash without duplicates or number g
     $import = makeImport($this->admin, $rows);
 
     // The worker "dies" on row 601 (second chunk).
-    $real = app(SlaCalculator::class);
-    $this->app->instance(SlaCalculator::class, new class($real) implements SlaCalculator
+    $real = app(SlaService::class);
+    $this->app->instance(SlaService::class, new class(app(TicketNotifier::class)) extends SlaService
     {
         private int $calls = 0;
 
-        public function __construct(private SlaCalculator $real) {}
-
-        public function calculate(TicketPriority $priority, CarbonInterface $from): SlaResult
+        public function calculate(TicketPriority $priority, CarbonInterface $from): array
         {
             if (++$this->calls > 600) {
                 throw new RuntimeException('worker died');
             }
 
-            return $this->real->calculate($priority, $from);
+            return parent::calculate($priority, $from);
         }
     });
 
-    expect(fn () => app(RunTicketImport::class)($import))->toThrow(RuntimeException::class, 'worker died');
+    expect(fn () => app(ImportService::class)->run($import))->toThrow(RuntimeException::class, 'worker died');
 
     $import->refresh();
     expect($import->status)->toBe(ImportStatus::Failed)
@@ -247,8 +241,8 @@ it('resumes from last_processed_row after a crash without duplicates or number g
         ->and(Ticket::query()->where('source', TicketSource::Import)->count())->toBe(500);
 
     // Retry (as queue:retry or the Resume button would).
-    $this->app->instance(SlaCalculator::class, $real);
-    app(RunTicketImport::class)($import);
+    $this->app->instance(SlaService::class, $real);
+    app(ImportService::class)->run($import);
 
     $import->refresh();
     $numbers = Ticket::query()->where('source', TicketSource::Import)->pluck('ticket_number')
@@ -262,10 +256,10 @@ it('resumes from last_processed_row after a crash without duplicates or number g
 
 it('cannot duplicate tickets when committed chunks are processed again', function () {
     $import = makeImport($this->admin, [IMPORT_HEADER, row(['external_reference' => 'AGAIN-1']), row(['external_reference' => 'AGAIN-2'])]);
-    app(RunTicketImport::class)($import);
+    app(ImportService::class)->run($import);
 
     $import->refresh()->forceFill(['status' => ImportStatus::Failed, 'last_processed_row' => 0])->save();
-    app(RunTicketImport::class)($import);
+    app(ImportService::class)->run($import);
 
     expect(Ticket::query()->where('source', TicketSource::Import)->count())->toBe(2)
         ->and($import->refresh()->failed_rows)->toBe(2); // the replays are reported as duplicates
@@ -274,7 +268,7 @@ it('cannot duplicate tickets when committed chunks are processed again', functio
 it('fails the import when required columns are missing', function () {
     $import = makeImport($this->admin, [['external_reference', 'subject'], ['X-1', 'Hi']]);
 
-    app(RunTicketImport::class)($import);
+    app(ImportService::class)->run($import);
 
     expect($import->refresh()->status)->toBe(ImportStatus::Failed)
         ->and($import->error_message)->toBe('Missing required columns: customer_email, description, priority, category.');
@@ -290,7 +284,7 @@ it('reports rows with the wrong number of columns, staff emails and unknown agen
         row(['external_reference' => 'E-4']),
     ]);
 
-    app(RunTicketImport::class)($import);
+    app(ImportService::class)->run($import);
 
     $errors = $import->rowErrors()->get()->keyBy('row_number');
 
@@ -304,7 +298,7 @@ it('sends new customers a password-reset link only when the flag is set', functi
     config(['support.import.welcome_new_customers' => true]);
     $import = makeImport($this->admin, [IMPORT_HEADER, row(['customer_email' => 'fresh@example.com'])]);
 
-    app(RunTicketImport::class)($import);
+    app(ImportService::class)->run($import);
 
     Notification::assertSentTo(User::query()->where('email', 'fresh@example.com')->sole(), ResetPassword::class);
 });
@@ -317,7 +311,7 @@ it('imports the documented sample file', function () {
     Storage::disk('private')->put($path, file_get_contents(resource_path('samples/ticket-import-sample.csv')));
     $import = TicketImport::query()->create(['user_id' => $this->admin->id, 'original_name' => 'sample.csv', 'path' => $path]);
 
-    app(RunTicketImport::class)($import);
+    app(ImportService::class)->run($import);
 
     expect($import->refresh()->success_rows)->toBe(5)->and($import->failed_rows)->toBe(0);
 });

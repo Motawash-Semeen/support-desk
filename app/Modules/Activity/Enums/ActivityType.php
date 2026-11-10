@@ -2,14 +2,11 @@
 
 namespace App\Modules\Activity\Enums;
 
-/**
- * Every kind of entry in a ticket's append-only history. Values are what the
- * ticket_activities.type column stores.
- */
+/** Every kind of entry in a ticket's history (stored in ticket_activities.type). */
 enum ActivityType: string
 {
     case TicketCreated = 'ticket_created';
-    /** Subject or description edited (not in the brief's list; needed so every edit is traceable). */
+    /** Subject or description edited. */
     case TicketUpdated = 'ticket_updated';
     case StatusChanged = 'status_changed';
     case Reopened = 'reopened';
@@ -54,11 +51,7 @@ enum ActivityType: string
         };
     }
 
-    /**
-     * Whether a customer may see this entry in their ticket's timeline.
-     * Internal: notes, assignment details, SLA internals and escalation.
-     * The match is exhaustive, so a new case cannot skip this decision.
-     */
+    /** Whether customers see this entry. The match has no default, so a new case must decide. */
     public function isCustomerVisible(): bool
     {
         return match ($this) {
@@ -84,7 +77,6 @@ enum ActivityType: string
         };
     }
 
-    /** @return list<string> */
     public static function customerVisibleValues(): array
     {
         return array_values(array_map(

@@ -5,12 +5,7 @@ namespace Database\Factories;
 use App\Modules\Sla\Models\Holiday;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
-/**
- * Default dates are 60+ days ahead of the (frozen) clock, so a holiday made
- * without an explicit date can never fall inside a test's SLA window.
- *
- * @extends Factory<Holiday>
- */
+/** Dates 60+ days ahead, so a holiday never lands in a test's SLA window by accident. */
 class HolidayFactory extends Factory
 {
     protected $model = Holiday::class;

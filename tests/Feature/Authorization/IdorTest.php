@@ -3,7 +3,6 @@
 use App\Models\User;
 use App\Modules\Conversation\Models\Attachment;
 use App\Modules\Conversation\Models\TicketReply;
-use App\Modules\Notifications\Notifications\TicketResolvedNotification;
 use App\Modules\Tickets\Enums\TicketStatus;
 use App\Modules\Tickets\Models\Ticket;
 use Illuminate\Support\Facades\Storage;
@@ -75,7 +74,7 @@ test('a customer cannot download another customer\'s attachment by id', function
 });
 
 test('a customer cannot mark or open another user\'s notification by id', function () {
-    $this->victim->notify(new TicketResolvedNotification($this->ticket));
+    $this->victim->notify(resolvedNotification($this->ticket));
     $notification = $this->victim->notifications()->sole();
 
     $this->actingAs($this->attacker)->post(route('notifications.read', $notification->id), ['open' => 1])->assertNotFound();

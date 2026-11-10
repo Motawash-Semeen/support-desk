@@ -2,9 +2,9 @@
 
 use App\Models\User;
 use App\Modules\Imports\Enums\ImportStatus;
-use App\Modules\Imports\Jobs\ProcessTicketImport;
 use App\Modules\Imports\Models\TicketImport;
 use App\Modules\Imports\Models\TicketImportError;
+use App\Modules\Imports\ProcessTicketImport;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;

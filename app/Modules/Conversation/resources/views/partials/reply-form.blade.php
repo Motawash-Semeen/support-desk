@@ -1,7 +1,4 @@
-{{--
-    Reply / internal-note composer. Customers never see the type choice; the
-    server forces their replies to public anyway (StoreReplyRequest).
---}}
+{{-- Reply / internal-note form. Customers never see the type choice. --}}
 @php
     $canReply = auth()->user()->can('reply', $ticket);
     $canNote = auth()->user()->can('work', $ticket);

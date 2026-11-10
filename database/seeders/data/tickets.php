@@ -4,7 +4,7 @@
  * Sample tickets for TicketSeeder: what customers wrote and how the team answered.
  *
  * customer  index into UserSeeder::CUSTOMERS
- * flow      where the ticket ends up (see TicketSeeder::FLOWS):
+ * flow      where the ticket ends up (TicketSeeder::FLOWS):
  *           new, stale (unassigned + breached), assigned, working, waiting, approaching, breached,
  *           resolved, late (resolved after the deadline), closed, reopened
  * ago       roughly how many hours ago the customer wrote (the seeder adjusts it to fit the flow)

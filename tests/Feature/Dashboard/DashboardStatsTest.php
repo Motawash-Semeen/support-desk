@@ -3,7 +3,7 @@
 use App\Models\User;
 use App\Modules\Activity\Enums\ActivityType;
 use App\Modules\Activity\Models\TicketActivity;
-use App\Modules\Dashboard\Services\DashboardStatsService;
+use App\Modules\Dashboard\DashboardService;
 use App\Modules\Tickets\Enums\TicketPriority;
 use App\Modules\Tickets\Enums\TicketStatus;
 use App\Modules\Tickets\Models\Ticket;
@@ -41,42 +41,42 @@ beforeEach(function () {
 });
 
 it('computes the admin (global) numbers', function () {
-    $stats = app(DashboardStatsService::class)->for($this->admin);
+    $stats = app(DashboardService::class)->for($this->admin);
 
-    expect($stats->scope)->toBe('global')
-        ->and($stats->totalActive)->toBe(4)
-        ->and($stats->unassignedActive)->toBe(1)
-        ->and($stats->criticalActive)->toBe(1)
-        ->and($stats->slaBreachedActive)->toBe(1)
-        ->and($stats->approachingActive)->toBe(1)
-        ->and($stats->resolvedTotal)->toBe(2)
-        ->and($stats->resolvedToday)->toBe(1)
-        ->and($stats->escalatedActive)->toBe(1)
-        ->and($stats->byPriority)->toBe(['critical' => 1, 'high' => 1, 'medium' => 1, 'low' => 1])
-        ->and($stats->byAgent)->toBe([
+    expect($stats['scope'])->toBe('global')
+        ->and($stats['totalActive'])->toBe(4)
+        ->and($stats['unassignedActive'])->toBe(1)
+        ->and($stats['criticalActive'])->toBe(1)
+        ->and($stats['slaBreachedActive'])->toBe(1)
+        ->and($stats['approachingActive'])->toBe(1)
+        ->and($stats['resolvedTotal'])->toBe(2)
+        ->and($stats['resolvedToday'])->toBe(1)
+        ->and($stats['escalatedActive'])->toBe(1)
+        ->and($stats['byPriority'])->toBe(['critical' => 1, 'high' => 1, 'medium' => 1, 'low' => 1])
+        ->and($stats['byAgent'])->toBe([
             ['id' => $this->agent1->id, 'name' => 'Agent One', 'active' => 2, 'breached' => 1],
             ['id' => $this->agent2->id, 'name' => 'Agent Two', 'active' => 1, 'breached' => 0],
         ])
-        ->and($stats->recentEscalations)->toHaveCount(1)
-        ->and($stats->recentEscalations[0]['ticket_number'])->toBe($this->b->ticket_number)
-        ->and($stats->recentEscalations[0]['agent'])->toBe('Agent One');
+        ->and($stats['recentEscalations'])->toHaveCount(1)
+        ->and($stats['recentEscalations'][0]['ticket_number'])->toBe($this->b->ticket_number)
+        ->and($stats['recentEscalations'][0]['agent'])->toBe('Agent One');
 });
 
 it('limits an agent to their own tickets plus the unassigned queue', function () {
-    $stats = app(DashboardStatsService::class)->for($this->agent2);
+    $stats = app(DashboardService::class)->for($this->agent2);
 
     // A (unassigned), D (own, active), E (own, resolved today)
-    expect($stats->scope)->toBe('agent')
-        ->and($stats->totalActive)->toBe(2)
-        ->and($stats->unassignedActive)->toBe(1)
-        ->and($stats->criticalActive)->toBe(1)
-        ->and($stats->slaBreachedActive)->toBe(0)
-        ->and($stats->approachingActive)->toBe(0)
-        ->and($stats->resolvedTotal)->toBe(1)
-        ->and($stats->resolvedToday)->toBe(1)
-        ->and($stats->escalatedActive)->toBe(0)
-        ->and($stats->byAgent)->toBe([['id' => $this->agent2->id, 'name' => 'Agent Two', 'active' => 1, 'breached' => 0]])
-        ->and($stats->recentEscalations)->toBe([]);
+    expect($stats['scope'])->toBe('agent')
+        ->and($stats['totalActive'])->toBe(2)
+        ->and($stats['unassignedActive'])->toBe(1)
+        ->and($stats['criticalActive'])->toBe(1)
+        ->and($stats['slaBreachedActive'])->toBe(0)
+        ->and($stats['approachingActive'])->toBe(0)
+        ->and($stats['resolvedTotal'])->toBe(1)
+        ->and($stats['resolvedToday'])->toBe(1)
+        ->and($stats['escalatedActive'])->toBe(0)
+        ->and($stats['byAgent'])->toBe([['id' => $this->agent2->id, 'name' => 'Agent Two', 'active' => 1, 'breached' => 0]])
+        ->and($stats['recentEscalations'])->toBe([]);
 });
 
 it('builds everything in a handful of queries: two aggregate queries for the eight counters', function () {
@@ -84,14 +84,14 @@ it('builds everything in a handful of queries: two aggregate queries for the eig
     DB::flushQueryLog();
     DB::enableQueryLog();
 
-    app(DashboardStatsService::class)->for($this->admin);
+    app(DashboardService::class)->for($this->admin);
 
     $queries = collect(DB::getQueryLog())->pluck('query')->map(fn ($sql) => strtolower(str_replace(['`', '"'], '', $sql)));
     DB::disableQueryLog();
 
-    // active counters, finished counters, by priority, by agent, escalations + 2 eager loads.
+    // active counters, finished counters, by priority, by agent, escalations (one join).
     // Each counter query is restricted by status, so neither scans the whole table.
-    expect($queries)->toHaveCount(7)
+    expect($queries)->toHaveCount(5)
         ->and(substr_count($queries[0], 'sum(case when'))->toBe(6)
         ->and($queries[0])->toContain('where tickets.status in')
         ->and(substr_count($queries[1], 'sum(case when'))->toBe(2)
@@ -99,7 +99,7 @@ it('builds everything in a handful of queries: two aggregate queries for the eig
 });
 
 it('serves repeat visits from a 30-second cache per scope', function () {
-    $service = app(DashboardStatsService::class);
+    $service = app(DashboardService::class);
     $service->for($this->admin);
 
     DB::flushQueryLog();
@@ -109,14 +109,14 @@ it('serves repeat visits from a 30-second cache per scope', function () {
     DB::disableQueryLog();
 
     expect($cachedQueries)->toBe(0)
-        ->and(DashboardStatsService::cacheKey($this->admin))->toBe('dashboard:admin')
-        ->and(DashboardStatsService::cacheKey($this->agent1))->toBe("dashboard:agent:{$this->agent1->id}");
+        ->and(DashboardService::cacheKey($this->admin))->toBe('dashboard:admin')
+        ->and(DashboardService::cacheKey($this->agent1))->toBe("dashboard:agent:{$this->agent1->id}");
 
     Ticket::factory()->create(['due_at' => now()->addDay(), 'sla_warning_at' => now()->addHours(12)]);
-    expect($service->for($this->admin)->totalActive)->toBe(4); // still cached (accepted staleness)
+    expect($service->for($this->admin)['totalActive'])->toBe(4); // still cached (accepted staleness)
 
     $this->travel(31)->seconds();
-    expect($service->for($this->admin)->totalActive)->toBe(5);
+    expect($service->for($this->admin)['totalActive'])->toBe(5);
 });
 
 it('renders stat cards that link to the filtered ticket list', function () {

@@ -5,9 +5,6 @@ namespace Database\Factories;
 use App\Modules\Sla\Models\BusinessHour;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
-/**
- * @extends Factory<BusinessHour>
- */
 class BusinessHourFactory extends Factory
 {
     protected $model = BusinessHour::class;

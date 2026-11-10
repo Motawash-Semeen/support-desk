@@ -2,33 +2,26 @@
 
 /*
 |--------------------------------------------------------------------------
-| Support Desk business settings
+| Support Desk business settings. Each value can be set from the environment.
+| SLA targets, hours and holidays are edited in the app; these are the defaults.
 |--------------------------------------------------------------------------
-|
-| Every tunable business rule lives here so no value is hard-coded in
-| Actions, Services, Jobs or views. Each value can be overridden from the
-| environment. Editable SLA rules are later moved to the database; these
-| values then act as defaults/fallbacks.
-|
 */
 
 return [
 
     /*
-    | Human-readable ticket numbers, e.g. TKT-000042.
+    | Ticket numbers, e.g. TKT-2026-000042.
     */
     'ticket_prefix' => env('SUPPORT_TICKET_PREFIX', 'TKT'),
     'ticket_number_padding' => (int) env('SUPPORT_TICKET_NUMBER_PADDING', 6),
 
     /*
-    | Business timezone. All timestamps are stored in UTC; this zone is used
-    | only by the SLA calculator and when rendering dates in views.
+    | Business timezone. Timestamps are stored in UTC; this is for deadlines and display.
     */
     'timezone' => env('SUPPORT_TIMEZONE', 'Asia/Dhaka'),
 
     /*
-    | Working days use Carbon's dayOfWeek numbering (Sunday = 0 ... Saturday = 6).
-    | Times are wall-clock times in the business timezone above.
+    | Working days: 0 = Sunday ... 6 = Saturday. Times in the business timezone.
     */
     'business_hours' => [
         'days' => [0, 1, 2, 3, 4],
@@ -37,9 +30,8 @@ return [
     ],
 
     /*
-    | Resolution targets per priority, in minutes of BUSINESS time.
-    | warning_threshold: fraction of the target elapsed before a ticket is
-    | flagged as "at risk" (0.8 = 80%).
+    | Resolution targets in business minutes. warning_threshold: share of the target
+    | after which a ticket is "at risk" (0.8 = 80%).
     */
     'sla' => [
         'low' => (int) env('SUPPORT_SLA_LOW', 2880),
@@ -50,32 +42,28 @@ return [
     ],
 
     /*
-    | Escalation of breached tickets (sla:scan). Level 1 happens at the breach.
-    | Level 2 happens when an active ticket is still open this many CLOCK
-    | minutes after its due date (not business minutes: an overdue ticket is
-    | overdue around the clock).
+    | Level 2 escalation: a ticket still open this many clock minutes after its due date.
+    | (Level 1 happens at the breach.)
     */
     'escalation' => [
         'level2_after_minutes' => (int) env('SUPPORT_ESCALATION_LEVEL2_AFTER_MINUTES', 120),
     ],
 
     /*
-    | Resolved tickets are closed automatically after this many days
-    | (tickets:auto-close-resolved).
+    | Resolved tickets close automatically after this many days.
     */
     'auto_close_resolved_after_days' => (int) env('SUPPORT_AUTO_CLOSE_RESOLVED_DAYS', 3),
 
     /*
-    | Read in-app notifications older than this are pruned (model:prune).
+    | Read in-app notifications older than this are pruned.
     */
     'notifications' => [
         'prune_read_after_days' => (int) env('SUPPORT_PRUNE_READ_NOTIFICATIONS_DAYS', 90),
     ],
 
     /*
-    | CSV ticket import (ProcessTicketImport). queue_connection should be
-    | imports-redis / imports-database (retry_after > job timeout) in real
-    | environments; null means the default connection (tests use sync).
+    | CSV import. queue_connection: imports-redis / imports-database in real
+    | environments; null means the default connection.
     */
     'import' => [
         'chunk_size' => (int) env('SUPPORT_IMPORT_CHUNK_SIZE', 500),
@@ -87,8 +75,7 @@ return [
     ],
 
     /*
-    | Ticket/reply attachments. Stored on a non-public disk and streamed
-    | through an authorized controller action, never linked directly.
+    | Attachments: stored on a private disk and streamed after a permission check.
     */
     'attachments' => [
         'disk' => env('SUPPORT_ATTACHMENTS_DISK', 'private'),
@@ -98,7 +85,7 @@ return [
     ],
 
     /*
-    | Auto-assignment (App\Modules\Assignment\Services\LeastWorkloadStrategy).
+    | Auto-assignment (AssignmentService::pickAgent).
     */
     'assignment' => [
         // Weight of one active ticket in an agent's workload, by priority.
@@ -117,8 +104,7 @@ return [
     ],
 
     /*
-    | Requests per minute per user (per IP for guests). Exceeding a limit returns
-    | 429 Too Many Requests. Named limiters are registered in AppServiceProvider.
+    | Requests per minute per user (per IP for guests); over the limit is a 429.
     */
     'rate_limits' => [
         'tickets' => (int) env('SUPPORT_RATE_TICKETS', 10),

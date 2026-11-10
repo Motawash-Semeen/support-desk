@@ -8,11 +8,7 @@ use App\Modules\Tickets\Models\Ticket;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
 
-/**
- * Metadata only; tests that need the file write it with Storage::fake().
- *
- * @extends Factory<Attachment>
- */
+/** Metadata only; tests that need the file write it with Storage::fake(). */
 class AttachmentFactory extends Factory
 {
     protected $model = Attachment::class;
@@ -26,7 +22,7 @@ class AttachmentFactory extends Factory
             'ticket_reply_id' => null,
             'uploaded_by' => User::factory(),
             'original_name' => fake()->slug(3).'.'.$extension,
-            // Same layout StoreAttachments writes: tickets/{ticket_id}/{Y}/{m}/{uuid}.{ext}
+            // Same layout Attachment::storeUploads() writes: tickets/{ticket_id}/{Y}/{m}/{uuid}.{ext}
             'stored_name' => fn (array $a) => sprintf('tickets/%d/%s/%s.%s', $a['ticket_id'], now()->format('Y/m'), Str::uuid(), $extension),
             'mime_type' => match ($extension) {
                 'pdf' => 'application/pdf',

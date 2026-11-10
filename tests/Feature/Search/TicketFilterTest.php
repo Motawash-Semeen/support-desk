@@ -3,9 +3,9 @@
 use App\Models\User;
 use App\Modules\Tickets\Enums\TicketPriority;
 use App\Modules\Tickets\Enums\TicketStatus;
-use App\Modules\Tickets\Filters\TicketFilter;
 use App\Modules\Tickets\Models\Category;
 use App\Modules\Tickets\Models\Ticket;
+use App\Modules\Tickets\TicketFilter;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 
@@ -21,7 +21,7 @@ beforeEach(function () {
 /** Ids matched by the filter for a user, sorted. */
 function filtered(User $user, array $filters): array
 {
-    return (new TicketFilter($user, $filters))->apply(Ticket::query())->pluck('tickets.id')->sort()->values()->all();
+    return (new TicketFilter($user, $filters))->query()->pluck('tickets.id')->sort()->values()->all();
 }
 
 function ids(Ticket ...$tickets): array
@@ -37,7 +37,7 @@ it('finds a ticket by exact number, case-insensitively, via the unique index', f
 
     expect(filtered($this->admin, ['q' => strtolower($target->ticket_number)]))->toBe(ids($target));
 
-    $sql = (new TicketFilter($this->admin, ['q' => $target->ticket_number]))->apply(Ticket::query())->toSql();
+    $sql = (new TicketFilter($this->admin, ['q' => $target->ticket_number]))->query()->toSql();
     expect(strtolower(str_replace(['`', '"'], '', $sql)))->toContain('ticket_number = ?')->not->toContain('match');
 });
 
@@ -51,7 +51,7 @@ it('searches subject and description by keyword', function () {
 });
 
 it('uses MATCH ... AGAINST in boolean mode with a sanitised, bound expression on MySQL', function () {
-    $query = (new TicketFilter($this->admin, ['q' => 'printer -jam "paper" @me']))->apply(Ticket::query());
+    $query = (new TicketFilter($this->admin, ['q' => 'printer -jam "paper" @me']))->query();
 
     expect(strtolower($query->toSql()))->toContain('match (`subject`, `description`) against (? in boolean mode)')
         ->and($query->getBindings())->toContain('+printer* +jam* +paper*');
@@ -186,8 +186,8 @@ it('sorts staff active lists by due date and customers by newest first', functio
     $dueLater = Ticket::factory()->for($this->customer, 'creator')->create(['due_at' => now()->addDays(2), 'created_at' => now()->subHour()]);
     $dueSooner = Ticket::factory()->for($this->customer, 'creator')->create(['due_at' => now()->addHour(), 'created_at' => now()->subDay()]);
 
-    $staffOrder = (new TicketFilter($this->admin, []))->apply(Ticket::query())->pluck('tickets.id')->all();
-    $customerOrder = (new TicketFilter($this->customer, []))->apply(Ticket::query())->pluck('tickets.id')->all();
+    $staffOrder = (new TicketFilter($this->admin, []))->query()->pluck('tickets.id')->all();
+    $customerOrder = (new TicketFilter($this->customer, []))->query()->pluck('tickets.id')->all();
 
     expect($staffOrder)->toBe([$dueSooner->id, $dueLater->id])
         ->and($customerOrder)->toBe([$dueLater->id, $dueSooner->id]);
@@ -198,7 +198,7 @@ it('sorts by priority weight from the whitelist', function () {
     $critical = Ticket::factory()->priority(TicketPriority::Critical)->create();
     $medium = Ticket::factory()->priority(TicketPriority::Medium)->create();
 
-    $order = (new TicketFilter($this->admin, ['sort' => 'priority', 'direction' => 'desc']))->apply(Ticket::query())->pluck('tickets.id')->all();
+    $order = (new TicketFilter($this->admin, ['sort' => 'priority', 'direction' => 'desc']))->query()->pluck('tickets.id')->all();
 
     expect($order)->toBe([$critical->id, $medium->id, $low->id]);
 });

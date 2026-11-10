@@ -5,24 +5,18 @@ namespace App\Modules\Activity\Models;
 use App\Models\User;
 use App\Modules\Activity\Enums\ActivityType;
 use App\Modules\Tickets\Models\Ticket;
-use Database\Factories\TicketActivityFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use LogicException;
 
-/**
- * Append-only audit entry. Rows are inserted, never updated; a NULL actor
- * means the system performed the change.
- */
+/** Append-only history entry. A null actor means the system. */
 class TicketActivity extends Model
 {
-    /** @use HasFactory<TicketActivityFactory> */
     use HasFactory;
 
     public const UPDATED_AT = null;
 
-    /** @var list<string> */
     protected $fillable = [
         'ticket_id',
         'actor_id',
@@ -42,11 +36,7 @@ class TicketActivity extends Model
         ];
     }
 
-    /**
-     * Append-only: rows are created, never changed or removed through the
-     * model. (They disappear only by the database cascade when their ticket
-     * is deleted.) There are no update or delete routes.
-     */
+    /** Rows are never changed or deleted through the model. */
     protected static function booted(): void
     {
         static::updating(function (): never {
@@ -68,13 +58,24 @@ class TicketActivity extends Model
         throw new LogicException('Ticket activities are append-only and cannot be deleted.');
     }
 
-    /** @return BelongsTo<Ticket, $this> */
+    /** Adds one entry to a ticket's history, inside the caller's transaction. */
+    public static function record(Ticket $ticket, ActivityType $type, ?User $actor, string $description, array $old = [], array $new = []): self
+    {
+        return self::query()->create([
+            'ticket_id' => $ticket->getKey(),
+            'actor_id' => $actor?->getKey(),
+            'type' => $type,
+            'description' => mb_strimwidth($description, 0, 255, '…'),
+            'old_values' => $old === [] ? null : $old,
+            'new_values' => $new === [] ? null : $new,
+        ]);
+    }
+
     public function ticket(): BelongsTo
     {
         return $this->belongsTo(Ticket::class);
     }
 
-    /** @return BelongsTo<User, $this> */
     public function actor(): BelongsTo
     {
         return $this->belongsTo(User::class, 'actor_id');

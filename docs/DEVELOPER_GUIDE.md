@@ -38,18 +38,18 @@ in the README and the UI guide; every password is `password`). Click through eac
 `app/Modules/Tickets/Enums/TicketPriority.php`. Everything else talks about these values.
 
 **Step 3. Follow one URL.** Open `app/Modules/Tickets/routes/web.php`, pick `POST /tickets` (create a ticket),
-and follow it: `TicketController::store` → `StoreTicketRequest` (validation) → `CreateTicket` (the work).
-Section 4 walks through exactly this path.
+and follow it: `TicketController::store` → `StoreTicketRequest` (validation) → `TicketService::create` (the
+work). Section 4 walks through exactly this path.
 
-**Step 4. Read the three most important actions.** `CreateTicket` (numbering, deadline, history),
-`ClaimTicket` (two agents can't take the same ticket) and `AddReply` (conversation rules, internal notes).
-Every other action follows the same pattern.
+**Step 4. Read the services.** Each module has one service class with the business work, one public method per
+task. Start with `TicketService` (create, edit, status changes, numbers), then `AssignmentService::claim` (two
+agents can't take the same ticket) and `ConversationService::addReply` (conversation rules, internal notes).
 
-**Step 5. Read the permissions.** `app/Modules/Tickets/Policies/TicketPolicy.php` decides who may do what to
-a ticket. Section 5 explains it line by line.
+**Step 5. Read the permissions.** `app/Modules/Tickets/TicketPolicy.php` decides who may do what to a ticket.
+Section 5 explains it line by line.
 
-**Step 6. Read the deadline maths.** `app/Modules/Sla/Services/BusinessCalendar.php`. It's pure logic with no
-database, so you can read it top to bottom.
+**Step 6. Read the deadline maths.** `app/Modules/Sla/BusinessCalendar.php`. It's pure logic with no database,
+so you can read it top to bottom.
 
 **Step 7. Read the tests next to the code.** `tests/Feature/<Area>` mirrors the modules. A test is the
 fastest way to see how a class is meant to be used. Run one area: `php artisan test tests/Feature/Tickets`.
@@ -119,23 +119,39 @@ app/Modules/
   Imports/        CSV import
 ```
 
-Every module has the same inside layout (only the folders it needs):
+Every module is **flat**: its classes sit in the module folder itself, and there are only three sub-folders
+for PHP code. Tickets, for example:
 
 ```
-Models/            database tables as classes
-Enums/             fixed lists of values (statuses, priorities…)
-Actions/           ONE class per business task (CreateTicket, AddReply…): the real work
-Services/          logic shared by several actions (deadline maths, ticket numbers…)
-Policies/          who may do what to a record
-Http/Controllers/  receive the request, return a page; thin
-Http/Requests/     validation rules for one form
-Events/ Listeners/ "something happened" / "react to it" (notifications)
-Jobs/              background work
-Console/Commands/  terminal commands, run by the scheduler
-resources/views/   templates, used as view('Tickets::index')
-routes/web.php     the module's URLs
-database/migrations/  the module's tables
+app/Modules/Tickets/
+  TicketController.php   receives the request, returns a page; thin
+  TicketService.php      the business work: create, edit, change status, auto-close, ticket numbers
+  TicketPolicy.php       who may do what to one ticket
+  TicketFilter.php       the ticket list's filters and search
+  Enums/                 fixed lists of values (TicketStatus, TicketPriority, TicketSource)
+  Models/                database tables as classes (Ticket, Category, TicketSequence)
+  Requests/              validation rules for one form each
+  resources/views/       templates, used as view('Tickets::index')
+  routes/web.php         the module's URLs
+  database/migrations/   the module's tables
 ```
+
+The other modules follow the same pattern:
+
+| Module | Controller | Service (the work) | Also |
+|---|---|---|---|
+| Tickets | `TicketController` | `TicketService` | `TicketPolicy`, `TicketFilter` |
+| Conversation | `ConversationController` | `ConversationService` | `AttachmentPolicy`; file storage on the `Attachment` model |
+| Assignment | `AssignmentController` | `AssignmentService` | `AutoAssignTicket` (queued job) |
+| Sla | `SlaSettingsController` | `SlaService` | `BusinessCalendar` (pure maths), `EscalateTicketJob` |
+| Activity | | `TicketActivity::record()` on the model | the timeline component |
+| Notifications | `NotificationController` | `TicketNotifier` (who hears about what) | `TicketNotification` (the one notification class) |
+| Dashboard | `DashboardController` | `DashboardService` | |
+| Imports | `TicketImportController` | `ImportService` | `CsvReader`, `ProcessTicketImport` (queued job), `ImportFinishedNotification` |
+
+So "where is the code that does X?" has one answer: the service of the module X belongs to. A job is a few
+lines that call a service method; a terminal command is a few lines in `routes/console.php` that call one.
+`config/modules.php` tells L5Modular about this layout.
 
 Outside the modules:
 
@@ -144,10 +160,10 @@ app/Models/User.php              users; role is admin | agent | customer
 app/Http/Middleware/EnsureRole   the role:admin / role:admin,agent check on URL groups
 app/Http/Middleware/SecurityHeaders   security headers on every page
 app/Providers/AppServiceProvider.php  app-wide setup (section 5 explains the auth parts)
-app/Support/                     small helpers: BusinessTime (show UTC in Dhaka time), FileSize, DeferredPagination
+app/Support/                     small helpers: BusinessTime (show UTC in Dhaka time), FileSize, DeferredPagination, SafeFilename
 config/support.php               EVERY business setting (deadlines, hours, uploads, assignment, import)
 routes/web.php, routes/auth.php  core URLs (home, profile, sign-in)
-routes/console.php               the scheduler: what runs every minute / day
+routes/console.php               every terminal command (each calls a service) and the schedule
 resources/views/                 layouts, shared components, sign-in pages, error pages
 database/seeders/                sample team, customers and 42 realistic tickets
 tests/                           automated tests (section 8)
@@ -155,9 +171,14 @@ tests/                           automated tests (section 8)
 
 ### The one rule
 
-**Business logic lives in Actions and Services.** Controllers only check permission, validate, call one
-action and return a page. Templates only display. An automatic test (`tests/Unit/ArchitectureTest.php`) fails
-if a controller uses the database directly, or if an action or service depends on HTTP classes.
+**Business logic lives in the services.** Controllers only check permission, validate, call one service method
+and return a page. Templates only display. An automatic test (`tests/Unit/ArchitectureTest.php`) fails if a
+controller uses the database directly, if a service depends on HTTP classes, or if a module grows a folder
+other than `Enums`, `Models` and `Requests`.
+
+**Who gets notified is in one file.** A service never sends mail itself; it calls one `TicketNotifier` method
+(`ticketCreated`, `replyAdded`, `assigned`, `resolved`, `slaWarning`, `slaBreached`, `escalated`). The notifier
+waits for the database commit, picks the recipients and sends a queued `TicketNotification`.
 
 ---
 
@@ -196,14 +217,21 @@ can create per minute (the number is in `config/support.php`).
 controller runs (section 5.5 shows how). `status` is the single endpoint for every status change: resolve,
 close, reopen and the working statuses.
 
+`TicketController` gets its service once, in the constructor:
+
+```php
+public function __construct(private readonly TicketService $tickets) {}
+```
+Laravel creates the `TicketService` (and everything it needs) automatically. That's called dependency
+injection: the controller never writes `new TicketService(...)`.
+
 `TicketController::changeStatus`:
 
 ```php
-public function changeStatus(ChangeTicketStatusRequest $request, Ticket $ticket, ChangeTicketStatus $changeStatus): RedirectResponse
+public function changeStatus(ChangeTicketStatusRequest $request, Ticket $ticket): RedirectResponse
 ```
-Laravel creates all three arguments. `ChangeTicketStatusRequest` validates the form **and checks permission**
-before this method runs, `$ticket` comes from the URL, and `ChangeTicketStatus` is the action, created
-automatically (that's called dependency injection).
+Laravel creates both arguments. `ChangeTicketStatusRequest` validates the form **and checks permission** before
+this method runs, and `$ticket` comes from the URL.
 
 ```php
     $from = $ticket->status;
@@ -212,9 +240,9 @@ automatically (that's called dependency injection).
 Remember the old status (for the message) and read the validated new status.
 
 ```php
-    $changeStatus($request->user(), $ticket, $to, $request->validated('reason'));
+    $this->tickets->changeStatus($request->user(), $ticket, $to, $request->validated('reason'));
 ```
-Hand the work to the action: who did it, which ticket, the target, and an optional reason.
+Hand the work to the service: who did it, which ticket, the target, and an optional reason.
 
 ```php
     $message = match (true) {
@@ -229,11 +257,11 @@ Hand the work to the action: who did it, which ticket, the target, and an option
 Pick a friendly message (`__()` makes it translatable) and go back to the ticket page with it.
 
 That's the whole controller method: no rules, no database. The rules are in the request (permission) and the
-action (the change).
+service (the change).
 
-### 4.2 An action: `CreateTicket`
+### 4.2 A service method: `TicketService::create`
 
-`app/Modules/Tickets/Actions/CreateTicket.php`, the part that does the work:
+`app/Modules/Tickets/TicketService.php`, the part that does the work:
 
 ```php
 return DB::transaction(function () use ($actor, $data, $files, &$stored): Ticket {
@@ -250,7 +278,7 @@ Take the time once (so every timestamp below matches) and turn the submitted tex
 
 ```php
     $ticket = Ticket::query()->create([
-        'ticket_number' => $this->numbers->generate($now),
+        'ticket_number' => $this->reserveNumbers(1, $now)[0],
 ```
 Get the next number, e.g. `TKT-2026-000043` (section 4.3 shows how it stays unique and gap-free).
 
@@ -263,13 +291,13 @@ Get the next number, e.g. `TKT-2026-000043` (section 4.3 shows how it stays uniq
         'created_by' => $actor->getKey(),
         'source' => $data['source'] ?? TicketSource::Web,
         'external_reference' => $data['external_reference'] ?? null,
-    ] + $this->sla->calculate($priority, $now)->toTicketAttributes());
+    ] + $this->sla->calculate($priority, $now));
 ```
-The ticket's columns, plus the deadline columns (`sla_minutes`, `sla_warning_at`, `due_at`) from the SLA
-calculator (section 4.4). New tickets always start `Open`.
+The ticket's columns, plus the deadline columns (`sla_policy_id`, `sla_minutes`, `sla_warning_at`, `due_at`)
+from `SlaService` (section 4.4). New tickets always start `Open`.
 
 ```php
-    $this->activity->record($ticket, ActivityType::TicketCreated, $actor, "Ticket {$ticket->ticket_number} created", [], [
+    TicketActivity::record($ticket, ActivityType::TicketCreated, $actor, "Ticket {$ticket->ticket_number} created", [], [
         'status' => TicketStatus::Open->value,
         'priority' => $priority->value,
         'category_id' => $ticket->category_id,
@@ -278,16 +306,16 @@ calculator (section 4.4). New tickets always start `Open`.
 Write the first history entry, in the same transaction, so a ticket can never exist without it.
 
 ```php
-    $stored = ($this->storeAttachments)($ticket, null, $actor, $files);
+    $stored = Attachment::storeUploads($ticket, null, $actor, $files);
 ```
 Save uploaded files to the private disk and record them. `$stored` remembers them so they can be deleted if
 anything fails.
 
 ```php
-    TicketCreated::dispatch($ticket, $actor);
+    $this->notifier->ticketCreated($ticket, $actor);
 ```
-Announce "a ticket was created". The event is marked to fire **only after the transaction commits**, so no
-email goes out for a ticket that was rolled back.
+Tell `TicketNotifier` a ticket was created. It waits for the transaction to **commit** before it sends
+anything (`DB::afterCommit`), so no email goes out for a ticket that was rolled back.
 
 ```php
     if (config('support.assignment.auto_on_create')) {
@@ -302,7 +330,7 @@ Queue the background job that picks an agent, also only after commit.
 Outside the transaction, a `try/catch` deletes `$stored` files if anything threw, and then **re-throws**:
 errors are never swallowed.
 
-### 4.3 Ticket numbers: `TicketNumberGenerator::reserve`
+### 4.3 Ticket numbers: `TicketService::reserveNumbers`
 
 ```php
 $year = ($at ?? now())->year;
@@ -333,11 +361,11 @@ until the first one's transaction finishes. That waiting is what makes duplicate
 Add the count (1 for a normal ticket, a block of numbers for an import) and save it.
 
 ```php
-return array_map(fn (int $number): string => $this->format($year, $number), range($last - $count + 1, $last));
+return array_map(fn (int $number): string => $this->formatNumber($year, $number), range($last - $count + 1, $last));
 ```
 Format each reserved number as `TKT-2026-000043`.
 
-Because `CreateTicket` calls this **inside its own transaction**, the transaction here joins it. If the ticket
+Because `create()` calls this **inside its own transaction**, the transaction here joins it. If the ticket
 fails to save, the counter increase is undone too, so no number is wasted (no gaps).
 
 ### 4.4 Deadlines in business hours: `BusinessCalendar::addBusinessMinutes`
@@ -381,22 +409,23 @@ If the rest of the target fits today, the deadline is today. Done.
 Otherwise use up today and jump to the next working day's opening time, then repeat.
 
 ```php
-throw NoBusinessHoursConfigured::within(self::MAX_DAYS);
+throw self::noWorkingTime();
 ```
 If a whole year has no working time (every day closed), fail loudly instead of looping forever.
 
 Example: critical (120 minutes), created Thursday 17:00, hours Sunday–Thursday 09:00–18:00. Thursday has 60
 minutes left → 60 remain → Friday and Saturday are closed → Sunday opens 09:00 → due **Sunday 10:00**.
 
-`BusinessHoursSlaCalculator::calculate` calls this twice: once with 80% of the target (the warning time) and
-once with the full target (the deadline). Both results are stored on the ticket in UTC.
+`SlaService::deadlines` calls this twice: once with 80% of the target (the warning time) and once with the full
+target (the deadline). Both results are stored on the ticket in UTC. `SlaService::calculate` first reads the
+target and the calendar from the (cached) SLA tables, then calls `deadlines`.
 
-### 4.5 Two agents, one ticket: `ClaimTicket`
+### 4.5 Two agents, one ticket: `AssignmentService::claim`
 
 ```php
 return DB::transaction(function () use ($ticket, $agent, $actor): bool {
     $now = CarbonImmutable::now();
-    $statusBefore = Ticket::query()->whereKey($ticket->getKey())->value('status');
+    $statusBefore = $this->currentStatus($ticket);
 ```
 Start a transaction and remember the old status for the history entry.
 
@@ -408,7 +437,7 @@ Start a transaction and remember the old status for the history entry.
         ->update([
             'assigned_agent_id' => $agent->getKey(),
             'assigned_at' => $now,
-            'status' => self::openBecomesInProgress(),
+            'status' => $this->openBecomesInProgress(),
         ]);
 ```
 **The key line.** One SQL statement: "assign this ticket to me, *but only if nobody owns it and it's still
@@ -420,22 +449,22 @@ run, but only the first finds `assigned_agent_id IS NULL`; the second changes **
         return false; // someone else won (or the ticket is no longer active)
     }
 ```
-0 rows changed means we lost. The controller turns `false` into a 409 page: "This ticket was just taken by
+0 rows changed means we lost. `accept()` turns `false` into a 409 page: "This ticket was just taken by
 another agent."
 
 ```php
     $ticket->refresh();
-    self::touchAgent($agent, $now);
-    $this->activity->record($ticket, ActivityType::Assigned, $actor, /* "Accepted by …" / "Auto-assigned to …" */);
-    TicketAssigned::dispatch($ticket, $agent, $actor, null);
+    $this->touchAgent($agent, $now);
+    TicketActivity::record($ticket, ActivityType::Assigned, $actor, /* "Accepted by …" / "Auto-assigned to …" */);
+    $this->notifier->assigned($ticket, $agent, $actor);
 ```
 We won: reload the ticket, note when the agent last got work (used by auto-assignment), write history, and
-announce it (the agent and customer get notified after commit).
+tell the notifier (the agent and customer get notified after commit).
 
-### 4.6 Escalation exactly once: `EscalateTicket::breach`
+### 4.6 Escalation exactly once: `SlaService::escalate` (breach)
 
 ```php
-$affected = $this->guarded($ticketId)
+$affected = $this->stillActive($ticketId)
     ->whereNull('breached_notified_at')
     ->where('due_at', '<', now())
     ->update([
@@ -444,8 +473,8 @@ $affected = $this->guarded($ticketId)
         'escalation_level' => DB::raw('CASE WHEN escalation_level < 1 THEN 1 ELSE escalation_level END'),
     ]);
 ```
-The same trick as `ClaimTicket`: "mark this ticket breached, *only if it isn't marked yet and really is
-overdue*". `guarded()` also requires the ticket to still be active.
+The same trick as `claim()`: "mark this ticket breached, *only if it isn't marked yet and really is
+overdue*". `stillActive()` also requires the ticket to still be active.
 
 ```php
 if ($affected === 0) {
@@ -456,11 +485,11 @@ Already done (by an earlier scan or a retried job), so do nothing. This is why c
 "deadline missed" emails, however often the scheduler runs.
 
 ```php
-$this->activity->record($ticket, ActivityType::SlaBreached, null, "SLA breached: was due {$due}", …);
-$this->activity->record($ticket, ActivityType::Escalated, null, 'Escalated to level 1 (SLA breached)', …);
-SlaBreached::dispatch($ticket);
+TicketActivity::record($ticket, ActivityType::SlaBreached, null, "SLA breached: was due {$due}", …);
+TicketActivity::record($ticket, ActivityType::Escalated, null, 'Escalated to level 1 (SLA breached)', …);
+$this->notifier->slaBreached($ticket);
 ```
-History entries (actor `null` = the system), then the event that notifies the agent and every admin.
+History entries (actor `null` = the system), then the notifier tells the agent and every admin.
 
 ```php
 if ($ticket->assigned_agent_id === null) {
@@ -469,12 +498,12 @@ if ($ticket->assigned_agent_id === null) {
 ```
 An overdue ticket with no owner gets an auto-assignment attempt right away.
 
-### 4.7 The ticket list: `TicketFilter::apply`
+### 4.7 The ticket list: `TicketFilter::query`
 
 ```php
-$query->visibleTo($this->user);
+$query = Ticket::query()->visibleTo($this->user);
 ```
-**Always first:** limit the query to tickets this user may see (section 5.4). No filter below can widen it.
+**Always first:** start from the tickets this user may see (section 5.5). No filter below can widen it.
 
 ```php
 if ($this->user->isAgent()) {
@@ -484,29 +513,18 @@ if ($this->user->isAgent()) {
 An agent's list shows only their own tickets; unassigned ones are in the Unassigned queue page instead.
 
 ```php
-$this->keyword($query);
-$this->scope($query);
-$this->statuses($query);
-$this->priorities($query);
-$this->category($query);
-$this->createdRange($query);
+if ($this->has('priority')) {
+    $query->whereIn('priority', array_map(fn ($p) => TicketPriority::from($p)->value, (array) $this->filters['priority']));
+}
 ```
-Each filter is one small method that adds a `WHERE` when its value is present.
+Every filter follows this pattern, top to bottom in one method: when the value is present, add a `WHERE`.
 
 ```php
-if ($this->user->isAdmin()) {
-    $this->assignee($query);
-}
-
 if ($this->user->isStaff()) {
-    $this->customer($query);
-    $this->slaStatus($query);
-    $this->escalated($query);
+    // customer, SLA status, escalated
 }
-
-$this->sort($query);
 ```
-Staff-only filters are ignored for customers, even if someone types them into the URL. Sorting accepts only a
+Staff-only filters are skipped for customers, even if someone types them into the URL. Sorting accepts only a
 fixed list of columns, so nobody can inject SQL through `?sort=`.
 
 The controller then pages the result with `DeferredPagination`: first only the ids for this page (fast, from an
@@ -623,7 +641,7 @@ per-record rule, just "is this person an admin / staff / agent?".
 ### 5.4 Layer 2: the policy for each ticket
 
 Some rules depend on **which ticket**: "only the assigned agent may resolve it", "a customer may edit only
-their own ticket while it's open". A role can't express that, so `app/Modules/Tickets/Policies/TicketPolicy.php`
+their own ticket while it's open". A role can't express that, so `app/Modules/Tickets/TicketPolicy.php`
 answers it, given the user and the ticket.
 
 ```php
@@ -711,8 +729,8 @@ an active one can't be "reopened" at all.
 public function assign(User $user, Ticket $ticket): bool  { return $user->isAdmin() && $ticket->isActive(); }
 public function accept(User $user, Ticket $ticket): bool  { return $user->isAgent() && $ticket->isActive(); }
 ```
-Only admins pick who gets a ticket. Any agent may *try* to accept; `ClaimTicket` decides atomically whether
-they won (section 4.5).
+Only admins pick who gets a ticket. Any agent may *try* to accept; `AssignmentService::claim` decides
+atomically whether they won (section 4.5).
 
 ```php
 public function release(User $user, Ticket $ticket): bool
@@ -897,15 +915,15 @@ Every feature in this project was built in the same order. Following it keeps th
    there. Write down the decision and the alternatives (section 7 is where decisions live).
 2. **Database first, if needed.** Add or change the migration in the module's `database/migrations`, the
    model's `$fillable` and `casts()`, and the factory in `database/factories`.
-3. **The action.** Put the work in one `Actions/` class with `DB::transaction(...)`. Record a history entry
-   with `TicketActivityRecorder`. Fire an event (after commit) if someone should be notified.
+3. **The work.** Add a public method to the module's service, with `DB::transaction(...)`. Record a history
+   entry with `TicketActivity::record()`. Call a `TicketNotifier` method if someone should be notified.
 4. **Permission.** Policy ability (or role middleware), asked once.
-5. **Validation.** A form request in `Http/Requests` with the rules.
+5. **Validation.** A form request in the module's `Requests/` folder with the rules.
 6. **The URL and controller.** A route in the module's `routes/web.php` and a thin controller method:
-   check, validate, call the action, return.
+   check, validate, call the service, return.
 7. **The screen.** A Blade view in the module's `resources/views`, using the shared components
    (`<x-card>`, `<x-badge>`, …).
-8. **Notifications, if any.** A listener in `Notifications/Listeners` (who) and a notification class (what).
+8. **Notifications, if any.** A method in `Notifications/TicketNotifier.php`: who receives it and the wording.
 9. **Tests.** A unit test for pure logic, a feature test for the HTTP flow, rows in the policy matrix for new
    rules.
 10. **Quality checks:** `vendor/bin/pint`, `vendor/bin/phpstan analyse`, `php artisan test` on SQLite and on
@@ -946,17 +964,24 @@ New decisions go at the end of the matching group.
   tokens), and a much smaller surface to secure and test.
 - *Trade-off:* full page reloads; less "app-like" interaction.
 
-**Actions and services, not fat controllers or a repository layer.**
-- *Alternatives:* logic in controllers; logic in models; repository + service layers.
-- *Why:* each business task is one testable class with exactly one transaction, callable from controllers, jobs,
-  commands and tests alike. A repository over Eloquent only re-wraps the query builder.
-- *Trade-off:* more, smaller files.
+**One service per feature, in flat modules; not one class per task, fat controllers or a repository layer.**
+- *Alternatives:* one Action class per business task plus events, listeners, interfaces and small data classes
+  (what we had, with folders like `Actions/Concerns` and `Http/Controllers`); logic in controllers; logic in
+  models; repository + service layers.
+- *Why:* to follow one feature you open one file. Each module has one controller and one service, and the only
+  sub-folders are `Enums`, `Models` and `Requests`: 80 classes in `app/` instead of 172 (54 in the modules
+  instead of 147). Each service method is still one task with one transaction, callable from controllers, jobs,
+  commands and tests alike. A repository over Eloquent only re-wraps the query builder; interfaces with a single
+  implementation only added a file to jump through.
+- *Trade-off:* service files are longer (up to about 450 lines for `SlaService`), so they are split into
+  labelled parts; swapping an implementation (for example the SLA maths) means editing the class, not binding
+  another one. Tests replace a service with `$this->mock(SlaService::class)` or a small subclass instead.
 
 **Feature modules with L5Modular.**
 - *Alternatives:* Laravel's default layer folders (all controllers together, all models together…);
   `nwidart/laravel-modules` (a service provider, composer file and asset build per module).
 - *Why:* everything about tickets is in one folder; L5Modular adds that with one provider and no per-module
-  setup.
+  setup. `config/modules.php` tells it controllers sit in the module root (the flat layout).
 - *Trade-off:* the package is no longer actively maintained; its "factories inside modules" feature is broken on
   current Laravel, so factories stay in `database/factories` (a test enforces it). Replacing it would take about
   twenty lines in a provider.
@@ -1049,7 +1074,7 @@ New decisions go at the end of the matching group.
 - *Why:* full-text search stays fast at millions of rows with no extra service; SQLite tests still run.
 - *Trade-off:* MySQL ignores very short words; replies aren't searched.
 
-**Realistic sample data created by replaying the real actions.**
+**Realistic sample data created by replaying the real service methods.**
 - *Alternatives:* random factory data written straight into columns; hand-written rows.
 - *Why:* numbers, deadlines, history and notifications are exactly what the app would produce, so the demo
   never shows impossible data.
@@ -1124,15 +1149,18 @@ New decisions go at the end of the matching group.
 **Status rules in the enum (`TicketStatus::allowedTransitions()`); one status endpoint.**
 - *Alternatives:* `if` statements in controllers; a state-machine package; separate routes and actions for
   resolve, close and reopen (what we had before).
-- *Why:* one list of legal moves, tested pair by pair; one endpoint and one action (`ChangeTicketStatus`) for
-  every move, with the right permission per target.
+- *Why:* one list of legal moves, tested pair by pair; one endpoint and one method
+  (`TicketService::changeStatus`) for every move, with the right permission per target.
 - *Trade-off:* none significant.
 
-**Events fire only after the transaction commits.**
-- *Alternatives:* fire immediately; fire from the controller after the action returns.
-- *Why:* no email or notification ever goes out about a change that was rolled back, even when actions are
-  nested.
-- *Trade-off:* listeners can't run inside the original transaction (they don't need to).
+**Notifications go out only after the transaction commits.**
+- *Alternatives:* send immediately; send from the controller after the service returns; events marked "after
+  commit" with listeners (what we had).
+- *Why:* no email or notification ever goes out about a change that was rolled back, even when services call
+  each other (a reply that changes the status). `TicketNotifier` wraps every send in `DB::afterCommit`, which
+  runs at once when there is no transaction.
+- *Trade-off:* recipients are looked up in the request after the commit (a query or two), not in a queued
+  listener.
 
 **Reopening restarts the deadline; a priority change recalculates from the original creation time.**
 - *Alternatives:* keep the old deadline on reopen (instantly breached).
@@ -1187,16 +1215,17 @@ New decisions go at the end of the matching group.
 **Rules in tables (editable by admins), config as the default, one cached reader.**
 - *Alternatives:* hard-coded constants; config only (needs a deploy); read the tables on every calculation.
 - *Why:* admins change rules without a deploy, and calculations cost no queries on a warm cache.
-- *Trade-off:* the cache must be cleared on change (an observer does it after commit).
+- *Trade-off:* the cache must be cleared on change (the three models' `saved`/`deleted` hooks do it after commit).
 
 **Warning at a fraction of the target (80%), not a fixed time before the deadline.**
 - *Alternatives:* "30 minutes before due".
 - *Why:* scales with priority: 30 minutes is a quarter of a 2-hour target but almost nothing of a 48-hour one.
 - *Trade-off:* none significant.
 
-**One resolver for SLA status in PHP and SQL, side by side.**
+**One place for SLA status in PHP and SQL, side by side (the `SlaStatus` enum).**
 - *Alternatives:* separate PHP and SQL code (they drift); a computed database column.
-- *Why:* badges, filters and the dashboard can't disagree; a test checks both on every boundary.
+- *Why:* badges, filters and the dashboard can't disagree (`SlaStatus::resolve()` for one ticket,
+  `applyTo()` for queries); a test checks both on every boundary.
 - *Trade-off:* the same rule is written twice, next to each other.
 
 **A stateless scan every minute, not one delayed job per ticket.**
@@ -1224,24 +1253,45 @@ New decisions go at the end of the matching group.
   tricks, overwrites and guessing.
 - *Trade-off:* a legitimate but unusual file type must be added to the allow-list.
 
-**Conversation rules in one action (`AddReply`).**
+**Conversation rules in one method (`ConversationService::addReply`).**
 - *Alternatives:* logic in the controller; reopen automatically on any customer reply.
 - *Why:* status, first-response time and history are changed under one lock and can never disagree.
 - *Trade-off:* none.
 
 ### Notifications
 
-**Events → queued listeners → queued notifications (mail + bell), mail on its own queue.**
-- *Alternatives:* send mail inside the action; one queue for everything; mail only.
-- *Why:* requests return fast; retries come from the queue; a flood of emails can't delay assignment jobs; the
-  bell needs no extra service.
-- *Trade-off:* a queue worker must run.
+**One notifier and one notification class; queued mail + bell, mail on its own queue.**
+- *Alternatives:* events → queued listeners → one notification class per event (what we had: 11 events,
+  8 listeners and 10 notification classes); send mail inside the service; one queue for everything; mail only.
+- *Why:* "who hears about what" is one readable file (`TicketNotifier`), and every message has the same shape
+  (subject, sentence, optional excerpt), so one `TicketNotification` class carries them all; its `kind` says
+  what happened. Requests return fast; retries come from the queue; a flood of emails can't delay assignment
+  jobs; the bell needs no extra service.
+- *Trade-off:* a queue worker must run; adding a channel for only one kind of message needs an `if` on `kind`.
+
+**User mistakes and lost races use Laravel's own errors, not one exception class per case.**
+- *Alternatives:* a custom exception class with its own `render()` for each case (what we had:
+  `InvalidTicketTransition`, `ReplyNotAllowed`, `AssignmentConflict`, `NoBusinessHoursConfigured`).
+- *Why:* an illegal status move or a reply on a closed ticket is a `ValidationException` (the form shows the
+  message, JSON gets a 422); a lost assignment race is `abort(409, …)` with `resources/views/errors/409.blade.php`;
+  a calendar with no working time is a `RuntimeException`. Same responses, four fewer classes.
+- *Trade-off:* in debug mode the 409 JSON also carries the exception details (production shows only the
+  message).
+
+**Artisan commands as short closures in `routes/console.php`.**
+- *Alternatives:* one command class per command in each module (what we had).
+- *Why:* each command is a few lines that read options and call one service method, and they sit next to the
+  schedule that runs them, so one file shows every command and when it runs.
+- *Trade-off:* a command that grows real logic should move that logic into its service, not into the closure.
 
 ### Search, lists and dashboard
 
-**`TicketFilter`: one small method per filter, visibility first, whitelisted sorting.**
-- *Alternatives:* query logic in the controller; a generic filter package.
-- *Why:* easy to test and extend, and no filter can bypass visibility or inject SQL through sorting.
+**`TicketFilter`: one method that builds the list query, visibility first, whitelisted sorting.**
+- *Alternatives:* query logic in the controller; one small method per filter (what we had); a generic filter
+  package.
+- *Why:* the whole list query reads top to bottom in one place, no filter can bypass visibility or inject SQL
+  through sorting, and because the method creates `Ticket::query()` itself, static analysis knows every scope
+  without type annotations.
 - *Trade-off:* each new filter is a few lines of code.
 
 **Page numbers with a total for the ticket list; ids first, then rows (deferred join).**
@@ -1286,9 +1336,12 @@ New decisions go at the end of the matching group.
   by luck; a frozen clock makes failures reproducible on any day.
 - *Trade-off:* no browser or screenshot tests.
 
-**Larastan level 5, with findings fixed rather than ignored.**
+**Few comments and no type-only docblocks; Larastan level 5, with findings fixed rather than ignored.**
 - *Alternatives:* level 8 (mostly noise for Laravel); a baseline of known errors; no static analysis.
-- *Why:* a baseline hides exactly the findings worth reading.
+- *Why:* a baseline hides exactly the findings worth reading. Comments state the rule or the reason in a line or
+  two; lines like `@use HasFactory<…>` or `@return BelongsTo<…>` were removed, and where Larastan needed the
+  type the code was written so it can infer it (for example `TicketReply::query()->create()` instead of
+  `$ticket->replies()->create()`).
 - *Trade-off:* higher levels aren't enforced.
 
 ---
@@ -1314,7 +1367,7 @@ tests/
   any day. Use `$this->travelTo(...)` to move it.
 - **A clean database:** each test runs in a transaction that is rolled back afterwards (`RefreshDatabase`).
 - **Fake file storage** (`Storage::fake('private')`), **no real outside HTTP calls**, mail kept in memory.
-- **Queues run immediately** (the `sync` driver), so listeners and notifications actually run inside the test.
+- **Queues run immediately** (the `sync` driver), so jobs and notifications actually run inside the test.
 
 ### 8.2 Running tests
 
@@ -1418,17 +1471,17 @@ it('does not let a customer resolve their own ticket', function () {
 });
 ```
 
-**Template: testing an action directly** (faster, no HTTP)
+**Template: testing a service directly** (faster, no HTTP)
 
 ```php
-use App\Modules\Tickets\Actions\ChangeTicketStatus;
 use App\Modules\Tickets\Enums\TicketStatus;
+use App\Modules\Tickets\TicketService;
 
 it('sets resolved_at when a ticket is resolved', function () {
     $agent = User::factory()->agent()->create();
     $ticket = Ticket::factory()->assigned($agent)->inProgress()->create();
 
-    $resolved = app(ChangeTicketStatus::class)($agent, $ticket, TicketStatus::Resolved);
+    $resolved = app(TicketService::class)->changeStatus($agent, $ticket, TicketStatus::Resolved);
 
     expect($resolved->resolved_at)->not->toBeNull();
 });
@@ -1447,7 +1500,7 @@ letters are the answers for admin, assignee, another agent, the owner and anothe
 **Template: a unit test for pure logic**
 
 ```php
-use App\Modules\Sla\Services\BusinessCalendar;
+use App\Modules\Sla\BusinessCalendar;
 
 it('skips the weekend', function () {
     $calendar = /* build one, see tests/Unit/Sla/BusinessCalendarTest.php for the helper */;
@@ -1460,7 +1513,7 @@ it('skips the weekend', function () {
 ### 8.5 Changing an existing test
 
 1. **Find it:** `php artisan test --filter="part of the name"`, or search the `tests/` folder for the route
-   name, ability or class you changed (`tickets.status`, `'work'`, `ChangeTicketStatus`).
+   name, ability or method you changed (`tickets.status`, `'work'`, `changeStatus`).
 2. **Change the code first, run the tests, and read what fails.** The failures show every place that relied on
    the old behaviour.
 3. **Decide for each failure:** is the test now wrong (the rule changed on purpose, so update the expectation),
@@ -1481,8 +1534,9 @@ it('skips the weekend', function () {
 | check values | `expect($x)->toBe(...)`, `->toBeTrue()`, `->toBeNull()`, `->toHaveCount(3)`, `->toContain(...)`, `->not->...` |
 | check the database | `$this->assertDatabaseHas('tickets', ['id' => $t->id, 'status' => 'closed'])` |
 | move time | `$this->travelTo(CarbonImmutable::parse('2026-11-05 11:00', 'UTC'))`, `$this->travel(3)->days()` |
-| check notifications | `Notification::fake();` then `Notification::assertSentTo($user, TicketResolvedNotification::class)` |
-| check queued jobs / events | `Queue::fake();` `Queue::assertPushed(AutoAssignTicket::class)`; `Event::fake([TicketResolved::class])` |
+| check notifications | `Notification::fake();` then `Notification::assertSentTo($user, TicketNotification::class, ofKind('ticket_resolved'))` (kinds are listed in `TicketNotifier`; `ofKind()` is in `tests/Pest.php`) |
+| check queued jobs | `Queue::fake();` then `Queue::assertPushed(AutoAssignTicket::class)` |
+| make a service fail | `$this->mock(SlaService::class)->shouldReceive('calculate')->andThrow(new RuntimeException('boom'));` |
 | change a setting for one test | `config(['support.auto_close_resolved_after_days' => 5]);` |
 
 ### 8.7 Practice changes
@@ -1498,10 +1552,10 @@ it. Try them on a branch, then throw the branch away.
   default.
 
 **2. Change a business rule: customers can't choose "critical" priority.**
-- *Where:* `app/Modules/Tickets/Http/Requests/StoreTicketRequest.php` (the `priority` rule).
+- *Where:* `app/Modules/Tickets/Requests/StoreTicketRequest.php` (the `priority` rule).
 - *Change:* for customers, allow only low, medium and high, for example
   `Rule::in($this->user()->isStaff() ? [all values] : ['low', 'medium', 'high'])`. Hide "Critical" in
-  `resources/views/partials/form.blade.php` for customers too.
+  `app/Modules/Tickets/resources/views/partials/form.blade.php` for customers too.
 - *Test:* in `tests/Feature/Tickets/TicketHttpTest.php`, post the create form as a customer with
   `'priority' => 'critical'` and `->assertSessionHasErrors('priority')`; post as an agent and assert it works.
 
@@ -1547,7 +1601,8 @@ vendor/bin/phpstan analyse # static analysis: type errors without running the co
 
 CI (`.github/workflows/tests.yml`) runs Pint, Larastan and every test on MySQL 8 on every push. The
 architecture test (`tests/Unit/ArchitectureTest.php`) also checks the layer rules: controllers never use the
-database directly, actions and services never touch HTTP classes, and no debug calls (`dd`, `dump`) are left.
+database directly, services never touch HTTP classes, modules stay flat (only `Enums`, `Models` and `Requests`
+sub-folders), and no debug calls (`dd`, `dump`) are left.
 
 ---
 
@@ -1557,20 +1612,20 @@ database directly, actions and services never touch HTTP classes, and no debug c
 |---|---|
 | change deadlines, business hours, holidays | the admin screen `/admin/sla-settings`; defaults in `config/support.php` |
 | change the timezone, upload limits, auto-close days | `config/support.php` (each value has a `SUPPORT_*` env variable) |
-| add a field to tickets | the tickets migration, `$fillable`/`casts()` in `Models/Ticket.php`, `StoreTicketRequest`/`UpdateTicketRequest`, `resources/views/partials/form.blade.php`, `database/factories/TicketFactory.php` |
+| add a field to tickets | the tickets migration, `$fillable`/`casts()` in `Tickets/Models/Ticket.php`, `Tickets/Requests/StoreTicketRequest.php`/`UpdateTicketRequest.php`, `Tickets/resources/views/partials/form.blade.php`, `database/factories/TicketFactory.php` |
 | allow a new status move | `Tickets/Enums/TicketStatus.php` → `allowedTransitions()` |
-| change who can do something to a ticket | `Tickets/Policies/TicketPolicy.php` (section 5.10) |
-| change which tickets someone can see | `TicketPolicy::canSee()` **and** `Ticket::scopeVisibleTo()`, plus the agent rule in `TicketFilter::apply()` |
+| change who can do something to a ticket | `Tickets/TicketPolicy.php` (section 5.10) |
+| change which tickets someone can see | `TicketPolicy::canSee()` **and** `Ticket::scopeVisibleTo()`, plus the agent rule in `TicketFilter::query()` |
 | guard a page by role | `role:` middleware in the module's `routes/web.php` |
-| change who receives an email | the matching `Notifications/Listeners/Notify*.php` |
-| change an email's text | `Notifications/Notifications/*Notification.php` and `Notifications/resources/views/mail/ticket.blade.php` |
-| add a history entry type | a case in `Activity/Enums/ActivityType.php` (label and customer visibility), then record it in the action |
-| change the auto-assignment rule | `Assignment/Services/LeastWorkloadStrategy.php`; weights in `config/support.php` |
-| change the ticket list or filters | `Tickets/Filters/TicketFilter.php`, `Tickets/resources/views/index.blade.php`, `partials/filter-bar.blade.php` |
-| change dashboard numbers | `Dashboard/Services/DashboardStatsService.php` and its view |
+| change who receives an email, or its text | the matching method in `Notifications/TicketNotifier.php`; the layout is `Notifications/resources/views/mail/ticket.blade.php` |
+| add a history entry type | a case in `Activity/Enums/ActivityType.php` (label and customer visibility), then `TicketActivity::record()` it in the service |
+| change the auto-assignment rule | `AssignmentService::pickAgent()`; weights in `config/support.php` |
+| change the ticket list or filters | `Tickets/TicketFilter.php`, `Tickets/resources/views/index.blade.php`, `partials/filter-bar.blade.php` |
+| change dashboard numbers | `Dashboard/DashboardService.php` and its view |
+| add a terminal command | a closure in `routes/console.php` that calls a service method; schedule it below |
 | change the sidebar | `resources/views/layouts/navigation.blade.php` |
 | change colours or button styles | `tailwind.config.js` and `resources/css/app.css`, then `npm run build` |
-| change what runs on a schedule | `routes/console.php` |
+| change what runs on a schedule | `routes/console.php` (bottom half) |
 | change the sample data | `database/seeders/UserSeeder.php` and `database/seeders/data/tickets.php`, then `php artisan migrate:fresh --seed` |
 | add a new module | a folder in `app/Modules` with the layout from section 3; add its migrations folder to `phpstan.neon` and map any new policy in `AppServiceProvider::configureModules` |
 

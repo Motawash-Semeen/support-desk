@@ -1,11 +1,9 @@
 <?php
 
-use App\Modules\Tickets\Http\Controllers\CustomerSearchController;
-use App\Modules\Tickets\Http\Controllers\TicketController;
+use App\Modules\Tickets\TicketController;
 use Illuminate\Support\Facades\Route;
 
-// L5Modular wraps this file in the 'web' middleware group.
-// {ticket} resolves by ticket_number through visibleTo() (see AppServiceProvider).
+// {ticket} is the ticket number (bound in AppServiceProvider).
 Route::middleware(['auth', 'verified'])->group(function () {
     Route::controller(TicketController::class)->prefix('tickets')->name('tickets.')->group(function () {
         Route::get('/', 'index')->name('index');
@@ -17,7 +15,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/{ticket}/status', 'changeStatus')->name('status');
     });
 
-    Route::get('/staff/customers/search', CustomerSearchController::class)
+    Route::get('/staff/customers/search', [TicketController::class, 'customerSearch'])
         ->middleware('role:admin,agent')
         ->name('staff.customers.search');
 });

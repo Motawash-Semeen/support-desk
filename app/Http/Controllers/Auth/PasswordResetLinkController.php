@@ -6,7 +6,6 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Password;
-use Illuminate\Validation\ValidationException;
 use Illuminate\View\View;
 
 class PasswordResetLinkController extends Controller
@@ -19,11 +18,7 @@ class PasswordResetLinkController extends Controller
         return view('auth.forgot-password');
     }
 
-    /**
-     * Handle an incoming password reset link request.
-     *
-     * @throws ValidationException
-     */
+    /** Handle an incoming password reset link request. */
     public function store(Request $request): RedirectResponse
     {
         $request->validate([

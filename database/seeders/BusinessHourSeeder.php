@@ -5,10 +5,7 @@ namespace Database\Seeders;
 use App\Modules\Sla\Models\BusinessHour;
 use Illuminate\Database\Seeder;
 
-/**
- * Weekly schedule from config/support.php (default Sunday-Thursday 09:00-18:00).
- * Every weekday gets a row so the SLA calculator never has to guess.
- */
+/** One row per weekday from config/support.php (default Sunday-Thursday 09:00-18:00). */
 class BusinessHourSeeder extends Seeder
 {
     public function run(): void

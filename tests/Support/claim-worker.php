@@ -1,7 +1,7 @@
 <?php
 
 use App\Models\User;
-use App\Modules\Assignment\Actions\ClaimTicket;
+use App\Modules\Assignment\AssignmentService;
 use App\Modules\Tickets\Models\Ticket;
 use Illuminate\Contracts\Console\Kernel;
 
@@ -11,7 +11,7 @@ use Illuminate\Contracts\Console\Kernel;
 |   php tests/Support/claim-worker.php <ticketId> <agentId> <startAtUnixFloat>
 |
 | Boots the app against the database given in the environment, waits until
-| the shared start time so all workers fire together, calls ClaimTicket once
+| the shared start time so all workers fire together, calls AssignmentService::claim() once
 | and prints WON or LOST.
 */
 
@@ -29,4 +29,4 @@ while (microtime(true) < (float) $startAt) {
     usleep(500);
 }
 
-echo $app->make(ClaimTicket::class)($ticket, $agent, $agent) ? 'WON' : 'LOST';
+echo $app->make(AssignmentService::class)->claim($ticket, $agent, $agent) ? 'WON' : 'LOST';

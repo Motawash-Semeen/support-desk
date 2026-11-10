@@ -2,12 +2,10 @@
 
 use App\Models\User;
 use App\Modules\Activity\Enums\ActivityType;
-use App\Modules\Assignment\Actions\ClaimTicket;
-use App\Modules\Conversation\Actions\AddReply;
+use App\Modules\Assignment\AssignmentService;
+use App\Modules\Conversation\ConversationService;
 use App\Modules\Conversation\Enums\ReplyType;
-use App\Modules\Notifications\Notifications\AgentRepliedNotification;
-use App\Modules\Notifications\Notifications\InternalNoteAddedNotification;
-use App\Modules\Notifications\Notifications\TicketAssignedNotification;
+use App\Modules\Notifications\TicketNotification;
 use App\Modules\Tickets\Models\Ticket;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Mail;
@@ -32,10 +30,10 @@ beforeEach(function () {
     $this->agent = User::factory()->agent()->create();
     $this->ticket = Ticket::factory()->for($this->customer, 'creator')->create();
 
-    app(ClaimTicket::class)($this->ticket, $this->agent, $this->agent);
-    app(AddReply::class)($this->customer, $this->ticket, 'My printer is broken', ReplyType::Public);
-    app(AddReply::class)($this->agent, $this->ticket, 'Customer-facing answer', ReplyType::Public);
-    app(AddReply::class)($this->agent, $this->ticket, 'Note: '.MARKER.' do not tell the customer', ReplyType::InternalNote, [
+    app(AssignmentService::class)->claim($this->ticket, $this->agent, $this->agent);
+    app(ConversationService::class)->addReply($this->customer, $this->ticket, 'My printer is broken', ReplyType::Public);
+    app(ConversationService::class)->addReply($this->agent, $this->ticket, 'Customer-facing answer', ReplyType::Public);
+    app(ConversationService::class)->addReply($this->agent, $this->ticket, 'Note: '.MARKER.' do not tell the customer', ReplyType::InternalNote, [
         UploadedFile::fake()->create(MARKER.'-logs.txt', 1, 'text/plain'),
     ]);
 });
@@ -64,13 +62,13 @@ it('hides internal activity from the customer timeline but keeps the public stor
 
 it('never sends the internal note to the customer by notification or mail', function () {
     // The customer legitimately hears about the assignment and the public reply ...
-    Notification::assertSentTo($this->customer, TicketAssignedNotification::class);
-    Notification::assertSentTo($this->customer, AgentRepliedNotification::class);
-    Notification::assertNotSentTo($this->customer, InternalNoteAddedNotification::class);
+    Notification::assertSentTo($this->customer, TicketNotification::class, ofKind('assigned_to_you', 'ticket_assigned'));
+    Notification::assertSentTo($this->customer, TicketNotification::class, ofKind('agent_replied'));
+    Notification::assertNotSentTo($this->customer, TicketNotification::class, ofKind('internal_note_added'));
 
     // ... but nothing they receive (rendered email or in-app payload) contains the note.
-    $sent = Notification::sent($this->customer, TicketAssignedNotification::class)
-        ->merge(Notification::sent($this->customer, AgentRepliedNotification::class));
+    $sent = Notification::sent($this->customer, TicketNotification::class, ofKind('assigned_to_you', 'ticket_assigned'))
+        ->merge(Notification::sent($this->customer, TicketNotification::class, ofKind('agent_replied')));
 
     foreach ($sent as $notification) {
         $mail = (string) $notification->toMail($this->customer)->render();

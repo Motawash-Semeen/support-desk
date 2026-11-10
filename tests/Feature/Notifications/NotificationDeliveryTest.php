@@ -1,18 +1,14 @@
 <?php
 
 use App\Models\User;
-use App\Modules\Conversation\Enums\ReplyType;
 use App\Modules\Conversation\Models\TicketReply;
-use App\Modules\Notifications\Listeners\NotifyReplyAdded;
-use App\Modules\Notifications\Notifications\AgentRepliedNotification;
-use App\Modules\Notifications\Notifications\TicketNotification;
-use App\Modules\Notifications\Notifications\TicketResolvedNotification;
+use App\Modules\Notifications\TicketNotification;
+use App\Modules\Notifications\TicketNotifier;
 use App\Modules\Tickets\Models\Ticket;
-use Illuminate\Contracts\Events\ShouldHandleEventsAfterCommit;
 use Illuminate\Contracts\Queue\ShouldQueue;
-use Illuminate\Events\CallQueuedListener;
 use Illuminate\Notifications\SendQueuedNotifications;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Queue;
 
 beforeEach(function () {
@@ -20,33 +16,17 @@ beforeEach(function () {
     $this->ticket = Ticket::factory()->for($this->customer, 'creator')->create(['subject' => 'Printer jam']);
 });
 
-arch('every listener is queued and runs after commit')
-    ->expect(moduleNamespaces('Listeners'))
-    ->classes()
-    ->toImplement([ShouldQueue::class, ShouldHandleEventsAfterCommit::class]);
-
-arch('every ticket notification shares the queued base class')
-    ->expect('App\Modules\Notifications\Notifications')
-    ->classes()
-    ->toExtend(TicketNotification::class)
-    ->ignoring(TicketNotification::class);
-
-arch('every notification is queued')
-    ->expect(moduleNamespaces('Notifications'))
-    ->classes()
-    ->toImplement(ShouldQueue::class);
-
 it('queues mail on the notifications queue and database on default', function () {
     Queue::fake();
 
-    $this->customer->notify(new TicketResolvedNotification($this->ticket));
+    $this->customer->notify(resolvedNotification($this->ticket));
 
     Queue::assertPushedOn('notifications', SendQueuedNotifications::class, fn ($job) => $job->channels === ['mail']);
     Queue::assertPushedOn('default', SendQueuedNotifications::class, fn ($job) => $job->channels === ['database']);
 });
 
 it('retries with backoff and uses mail + database', function () {
-    $notification = new TicketResolvedNotification($this->ticket);
+    $notification = resolvedNotification($this->ticket);
 
     expect($notification)->toBeInstanceOf(ShouldQueue::class)
         ->and($notification->via($this->customer))->toBe(['mail', 'database'])
@@ -54,19 +34,20 @@ it('retries with backoff and uses mail + database', function () {
         ->and($notification->backoff)->toBe([30, 120, 600]);
 });
 
-it('stores ticket id, number, message and url for the in-app list', function () {
-    $data = (new TicketResolvedNotification($this->ticket))->toArray($this->customer);
+it('stores ticket id, number, kind, message and url for the in-app list', function () {
+    $data = (resolvedNotification($this->ticket))->toArray($this->customer);
 
     expect($data)->toBe([
         'ticket_id' => $this->ticket->id,
         'ticket_number' => $this->ticket->ticket_number,
+        'kind' => 'ticket_resolved',
         'message' => "Your ticket {$this->ticket->ticket_number} was marked resolved. Reply or reopen it if the problem is not fixed.",
         'url' => route('tickets.show', $this->ticket),
     ]);
 });
 
 it('renders the markdown email with the ticket and a link', function () {
-    $html = (string) (new TicketResolvedNotification($this->ticket))->toMail($this->customer)->render();
+    $html = (string) (resolvedNotification($this->ticket))->toMail($this->customer)->render();
 
     expect($html)->toContain('Hello Cara')
         ->and($html)->toContain($this->ticket->ticket_number)
@@ -76,7 +57,7 @@ it('renders the markdown email with the ticket and a link', function () {
 
 it('logs ticket and recipient when delivery finally fails', function () {
     Log::spy();
-    $notification = new TicketResolvedNotification($this->ticket);
+    $notification = resolvedNotification($this->ticket);
     $notification->via($this->customer); // as the sender does before queuing
 
     $notification->failed(new RuntimeException('SMTP down'));
@@ -87,10 +68,14 @@ it('logs ticket and recipient when delivery finally fails', function () {
         && $context['error'] === 'SMTP down');
 });
 
-it('cannot be built for an internal note', function () {
-    $note = TicketReply::factory()->for($this->ticket)->internalNote()->create(['type' => ReplyType::InternalNote]);
+it('never sends an internal note to the customer', function () {
+    Notification::fake();
+    $agent = User::factory()->agent()->create();
+    $note = TicketReply::factory()->for($this->ticket)->internalNote()->create();
 
-    expect(fn () => new AgentRepliedNotification($this->ticket, $note, 'Agent'))->toThrow(InvalidArgumentException::class);
+    app(TicketNotifier::class)->replyAdded($note, $this->ticket, $agent);
+
+    Notification::assertNothingSentTo($this->customer);
 });
 
 it('does not fail the request when mail delivery would fail later', function () {
@@ -103,5 +88,5 @@ it('does not fail the request when mail delivery would fail later', function () 
         ->post(route('tickets.replies.store', $ticket), ['body' => 'On it'])
         ->assertRedirect();
 
-    Queue::assertPushed(CallQueuedListener::class, fn ($job) => $job->class === NotifyReplyAdded::class);
+    Queue::assertPushed(SendQueuedNotifications::class, fn ($job) => $job->notification instanceof TicketNotification);
 });

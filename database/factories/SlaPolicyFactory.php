@@ -6,17 +6,11 @@ use App\Modules\Sla\Models\SlaPolicy;
 use App\Modules\Tickets\Enums\TicketPriority;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
-/**
- * @extends Factory<SlaPolicy>
- */
 class SlaPolicyFactory extends Factory
 {
     protected $model = SlaPolicy::class;
 
-    /**
-     * priority is unique in the table, so the default picks a priority not yet
-     * used in this test; use forPriority() to pin one.
-     */
+    /** Picks an unused priority (it is unique); forPriority() pins one. */
     public function definition(): array
     {
         $priority = TicketPriority::from(

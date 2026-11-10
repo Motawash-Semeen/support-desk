@@ -2,23 +2,18 @@
 
 namespace App\Modules\Sla\Models;
 
-use App\Modules\Sla\Observers\SlaRulesObserver;
+use App\Modules\Sla\SlaService;
 use App\Modules\Tickets\Enums\TicketPriority;
 use App\Modules\Tickets\Models\Ticket;
-use Database\Factories\SlaPolicyFactory;
-use Illuminate\Database\Eloquent\Attributes\ObservedBy;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[ObservedBy(SlaRulesObserver::class)]
 class SlaPolicy extends Model
 {
-    /** @use HasFactory<SlaPolicyFactory> */
     use HasFactory;
 
-    /** @var list<string> */
     protected $fillable = [
         'priority',
         'resolution_minutes',
@@ -26,11 +21,17 @@ class SlaPolicy extends Model
         'is_active',
     ];
 
-    /** @var array<string, mixed> */
     protected $attributes = [
         'warning_threshold' => 0.80,
         'is_active' => true,
     ];
+
+    /** A change clears the SLA rule cache after the commit. */
+    protected static function booted(): void
+    {
+        static::saved(fn () => SlaService::forgetRulesAfterCommit());
+        static::deleted(fn () => SlaService::forgetRulesAfterCommit());
+    }
 
     protected function casts(): array
     {
@@ -42,7 +43,6 @@ class SlaPolicy extends Model
         ];
     }
 
-    /** @return HasMany<Ticket, $this> */
     public function tickets(): HasMany
     {
         return $this->hasMany(Ticket::class);
@@ -53,7 +53,6 @@ class SlaPolicy extends Model
         $query->where('is_active', true);
     }
 
-    /** Served by the unique index on priority. */
     public function scopeForPriority(Builder $query, TicketPriority $priority): void
     {
         $query->where('priority', $priority);
